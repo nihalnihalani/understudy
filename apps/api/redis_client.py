@@ -143,6 +143,19 @@ class RedisClient:
         except json.JSONDecodeError:
             return None
 
+    async def get_synthesis_result(self, synth_id: UUID | str) -> dict[str, Any] | None:
+        """Read worker output stored at `us:synth:{id}:result`."""
+        conn = await self._get()
+        if conn is None:
+            return None
+        raw = await conn.get(f"us:synth:{synth_id}:result")
+        if raw is None:
+            return None
+        try:
+            return json.loads(raw)  # type: ignore[no-any-return]
+        except json.JSONDecodeError:
+            return None
+
     async def ping(self) -> bool:
         conn = await self._get()
         return conn is not None
