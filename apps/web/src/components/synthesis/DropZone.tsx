@@ -73,7 +73,7 @@ export function DropZone({
         "hover:border-primary/60 hover:bg-elevated/40",
         "focus-within:border-primary focus-within:ring-2 focus-within:ring-ring",
         dragOver &&
-          "border-primary bg-primary/5 ring-2 ring-primary/30 shadow-[0_0_0_6px_hsl(var(--primary)/0.08)]"
+          "border-primary bg-primary/5 ring-4 ring-primary/30 shadow-[0_0_20px_hsl(var(--primary)/0.15)] scale-[1.01]"
       )}
       aria-label="Drop a video recording to upload"
     >
@@ -89,8 +89,8 @@ export function DropZone({
       <div
         className={cn(
           "flex h-16 w-16 items-center justify-center rounded-full border border-border-strong bg-elevated text-muted-foreground",
-          "transition-colors duration-fast",
-          dragOver && "border-primary/60 bg-primary/10 text-primary"
+          "transition-all duration-base",
+          dragOver && "scale-110 border-primary bg-primary/20 text-primary shadow-[0_0_15px_hsl(var(--primary)/0.2)] animate-pulse"
         )}
         aria-hidden
       >

@@ -6,6 +6,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
 import { FileVideo, Clock, Sparkles, Info } from "lucide-react";
 import { PageHeader } from "@/layouts/AppShell";
 import { uploadRecording, ApiError, api } from "@/api/client";
@@ -94,7 +95,12 @@ export default function Upload() {
       />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <section className="space-y-4">
+        <motion.section 
+          className="space-y-4"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.2, type: "spring", stiffness: 300, damping: 30 }}
+        >
           {!staged ? (
             <DropZone
               onFileSelect={stage}
@@ -125,12 +131,23 @@ export default function Upload() {
             </div>
           )}
 
-          <PipelinePreview />
-        </section>
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.2, type: "spring", stiffness: 300, damping: 30, delay: 0.05 }}
+          >
+            <PipelinePreview />
+          </motion.div>
+        </motion.section>
 
-        <aside aria-label="Recent recordings">
+        <motion.aside 
+          aria-label="Recent recordings"
+          initial={{ opacity: 0, x: 10 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.2, type: "spring", stiffness: 300, damping: 30, delay: 0.1 }}
+        >
           <RecentRecordings />
-        </aside>
+        </motion.aside>
       </div>
     </div>
   );

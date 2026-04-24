@@ -16,6 +16,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { motion } from "framer-motion";
 import { Search, Sparkles, ShieldCheck, Filter } from "lucide-react";
 import { PageHeader, Button } from "@/layouts/AppShell";
 import { Input } from "@/components/ui/input";
@@ -142,9 +143,12 @@ export default function AgentWall() {
         }
       />
 
-      <section
+      <motion.section
         aria-label="Wall summary"
         className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.2, type: "spring", stiffness: 300, damping: 30 }}
       >
         <SummaryCard
           label="agents synthesized"
@@ -169,30 +173,52 @@ export default function AgentWall() {
           caption="target ≤ 90s"
           fixture
         />
-      </section>
+      </motion.section>
 
-      <FilterBar
-        filter={filter}
-        onFilter={setFilter}
-        query={query}
-        onQuery={setQuery}
-        counts={counts}
-        filteredCount={filtered.length}
-        total={agents.length}
-      />
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.2, type: "spring", stiffness: 300, damping: 30, delay: 0.05 }}
+      >
+        <FilterBar
+          filter={filter}
+          onFilter={setFilter}
+          query={query}
+          onQuery={setQuery}
+          counts={counts}
+          filteredCount={filtered.length}
+          total={agents.length}
+        />
+      </motion.div>
 
       {isLoading && agents.length === 0 ? (
         <LoadingGrid />
       ) : filtered.length === 0 ? (
         <EmptyState hasFilter={Boolean(query) || filter !== "all"} />
       ) : (
-        <section
+        <motion.section
           role="list"
           aria-label="Synthesized agents"
           className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+          variants={{
+            hidden: { opacity: 0 },
+            show: {
+              opacity: 1,
+              transition: { staggerChildren: 0.04, delayChildren: 0.1 },
+            },
+          }}
+          initial="hidden"
+          animate="show"
         >
           {filtered.map((a) => (
-            <div role="listitem" key={a.id}>
+            <motion.div
+              role="listitem"
+              key={a.id}
+              variants={{
+                hidden: { opacity: 0, y: 10 },
+                show: { opacity: 1, y: 0, transition: { duration: 0.2, type: "spring", stiffness: 300, damping: 30 } },
+              }}
+            >
               <AgentCard
                 agent={a}
                 extras={extras[a.id]!}
@@ -203,9 +229,9 @@ export default function AgentWall() {
                   else openAgent(a.id);
                 }}
               />
-            </div>
+            </motion.div>
           ))}
-        </section>
+        </motion.section>
       )}
 
       <AgentDetailSheet
@@ -344,18 +370,25 @@ function FilterPill({
       aria-checked={active}
       onClick={onClick}
       className={cn(
-        "inline-flex h-6 items-center gap-1.5 rounded-sm px-2 font-mono text-[11px] uppercase tracking-wider",
+        "relative inline-flex h-6 items-center gap-1.5 rounded-sm px-2 font-mono text-[11px] uppercase tracking-wider",
         "transition-colors duration-fast",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring z-10",
         active
-          ? "bg-elevated text-foreground"
+          ? "text-foreground"
           : "text-muted-foreground hover:text-foreground"
       )}
     >
+      {active && (
+        <motion.div
+          layoutId="filter-pill-active"
+          className="absolute inset-0 -z-10 rounded-sm bg-elevated"
+          transition={{ type: "spring", stiffness: 300, damping: 30 }}
+        />
+      )}
       {label}
       <span
         className={cn(
-          "font-mono text-[10px] tabular-nums",
+          "font-mono text-[10px] tabular-nums relative z-10",
           active ? "text-primary-soft" : "text-faint"
         )}
       >

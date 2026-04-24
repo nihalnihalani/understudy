@@ -64,8 +64,8 @@ export const AgentCard = forwardRef<HTMLDivElement, AgentCardProps>(
         onKeyDown={handleKey}
         className={cn(
           "group relative flex h-full flex-col gap-3 rounded-lg border bg-surface p-4",
-          "transition-all duration-fast",
-          "hover:-translate-y-[1px] hover:border-primary/60 hover:shadow-sm",
+        "transition-all duration-base",
+        "hover:-translate-y-1 hover:border-primary/60 hover:shadow-md",
           "focus-visible:outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring",
           selected ? "border-primary ring-1 ring-primary/40" : "border-border"
         )}

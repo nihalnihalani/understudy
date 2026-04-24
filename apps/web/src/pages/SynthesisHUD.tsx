@@ -10,6 +10,7 @@
 
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { motion } from "framer-motion";
 import { ArrowRight, WifiOff, Radio } from "lucide-react";
 import { PageHeader } from "@/layouts/AppShell";
 import { GeminiStageCard } from "@/components/synthesis/GeminiStageCard";
@@ -76,9 +77,12 @@ export default function SynthesisHUD() {
           "lg:grid-cols-[320px_minmax(0,1fr)_360px]"
         )}
       >
-        <section
+        <motion.section
           className="flex flex-col gap-4"
           aria-label="Pipeline stages"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.2, type: "spring", stiffness: 300, damping: 30 }}
         >
           {stages.map((stage, i) => (
             <GeminiStageCard
@@ -96,9 +100,14 @@ export default function SynthesisHUD() {
               variant={stage.variant}
             />
           ))}
-        </section>
+        </motion.section>
 
-        <section className="flex min-w-0 flex-col gap-4">
+        <motion.section 
+          className="flex min-w-0 flex-col gap-4"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.2, type: "spring", stiffness: 300, damping: 30, delay: 0.05 }}
+        >
           <Card>
             <CardContent className="space-y-3 p-4">
               <header className="flex items-baseline justify-between gap-2">
@@ -120,9 +129,15 @@ export default function SynthesisHUD() {
           <Card className="flex min-h-[340px] flex-1 flex-col overflow-hidden">
             <ScriptPanel lines={scriptLines} />
           </Card>
-        </section>
+        </motion.section>
 
-        <section className="flex flex-col gap-4" aria-label="Intent tree">
+        <motion.section 
+          className="flex flex-col gap-4" 
+          aria-label="Intent tree"
+          initial={{ opacity: 0, x: 10 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.2, type: "spring", stiffness: 300, damping: 30, delay: 0.1 }}
+        >
           <Card>
             <CardContent className="p-4">
               <div className="mb-3 flex items-center justify-between">
@@ -142,12 +157,12 @@ export default function SynthesisHUD() {
           </Card>
 
           <Link to={`/synthesize/${run.id}/dream-query`} className="w-full">
-            <Button variant="secondary" size="lg" className="w-full">
+            <Button variant="secondary" size="lg" className="w-full group">
               Open Cosmo Dream Query
-              <ArrowRight className="size-4" />
+              <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
             </Button>
           </Link>
-        </section>
+        </motion.section>
       </div>
     </div>
   );

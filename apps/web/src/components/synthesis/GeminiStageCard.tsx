@@ -56,7 +56,7 @@ export function GeminiStageCard({
   return (
     <Card
       className={cn(
-        "flex flex-col gap-3 p-4",
+        "flex flex-col gap-3 p-4 bg-surface/40",
         "transition-all duration-base",
         state === "streaming" &&
           "border-warning/40 shadow-[0_0_0_4px_hsl(var(--warning)/0.08)]",

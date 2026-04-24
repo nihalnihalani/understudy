@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   FileVideo,
   Activity,
@@ -57,17 +58,27 @@ const NAV: NavItem[] = [
 export function AppShell() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   useCommandPaletteHotkey(() => setPaletteOpen(true));
+  const location = useLocation();
 
   return (
     <TooltipProvider delayDuration={200}>
-      <div className="flex min-h-screen bg-background text-foreground">
+      <div className="flex min-h-screen bg-background text-foreground selection:bg-primary/20 selection:text-primary-strong">
         <Sidebar onCommandPalette={() => setPaletteOpen(true)} />
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex min-w-0 flex-1 flex-col relative z-0">
           <TopBar />
-          <main className="flex-1 overflow-x-hidden">
-            <div className="mx-auto w-full max-w-[1400px] px-8 py-6">
-              <Outlet />
-            </div>
+          <main className="flex-1 overflow-x-hidden relative">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={location.pathname}
+                initial={{ opacity: 0, y: 8, filter: "blur(4px)" }}
+                animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                exit={{ opacity: 0, y: -8, filter: "blur(4px)", transition: { duration: 0.15 } }}
+                transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}
+                className="mx-auto w-full max-w-[1400px] px-4 sm:px-6 lg:px-8 py-6"
+              >
+                <Outlet />
+              </motion.div>
+            </AnimatePresence>
           </main>
           <Footer />
         </div>
@@ -94,15 +105,15 @@ function Sidebar({ onCommandPalette }: { onCommandPalette: () => void }) {
       <button
         onClick={onCommandPalette}
         className={cn(
-          "mx-3 mt-4 flex h-8 items-center gap-2 rounded-md border border-border bg-background px-2.5 text-[12px] text-muted-foreground",
-          "transition-colors duration-fast",
-          "hover:border-border-strong hover:text-foreground",
+          "mx-3 mt-4 flex h-9 items-center gap-2 rounded-md border border-border-strong bg-elevated/50 px-3 text-[13px] text-muted-foreground shadow-sm",
+          "transition-all duration-fast",
+          "hover:border-primary/30 hover:bg-elevated hover:text-foreground hover:shadow-md",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         )}
       >
-        <Search className="size-3.5" />
+        <Search className="size-4" />
         <span className="flex-1 text-left">Quick jump…</span>
-        <Kbd>⌘K</Kbd>
+        <Kbd className="bg-background">⌘K</Kbd>
       </button>
 
       <nav className="mt-4 flex flex-col gap-0.5 px-2" aria-label="Sections">
@@ -148,12 +159,12 @@ function NavItemLink({ item }: { item: NavItem }) {
           isActive ||
           (item.match ? item.match.test(window.location.pathname) : false);
         return cn(
-          "group relative flex h-8 items-center gap-2.5 rounded-md px-2.5 text-[13px]",
-          "transition-colors duration-fast",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          "group relative flex h-8 items-center gap-2.5 rounded-md px-2.5 text-[13px] outline-none",
+          "transition-all duration-fast",
+          "focus-visible:bg-elevated focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-surface",
           active
-            ? "bg-elevated text-foreground"
-            : "text-muted-foreground hover:bg-elevated/60 hover:text-foreground"
+            ? "bg-elevated text-foreground font-medium shadow-sm"
+            : "text-muted-foreground hover:bg-elevated/80 hover:text-foreground"
         );
       }}
     >
@@ -163,17 +174,18 @@ function NavItemLink({ item }: { item: NavItem }) {
           (item.match ? item.match.test(window.location.pathname) : false);
         return (
           <>
-            <span
-              aria-hidden
-              className={cn(
-                "absolute left-0 h-4 w-0.5 rounded-r-full transition-colors duration-fast",
-                active ? "bg-primary" : "bg-transparent"
-              )}
-            />
+            {active && (
+              <motion.div
+                layoutId="nav-indicator"
+                className="absolute left-0 h-5 w-0.5 rounded-r-full bg-primary"
+                transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                aria-hidden
+              />
+            )}
             <item.icon
               className={cn(
-                "size-3.5 shrink-0",
-                active ? "text-primary" : "text-faint group-hover:text-muted"
+                "size-4 shrink-0 transition-colors duration-fast",
+                active ? "text-primary" : "text-faint group-hover:text-muted-foreground"
               )}
             />
             {item.label}
@@ -188,7 +200,7 @@ function TopBar() {
   return (
     <header
       className={cn(
-        "sticky top-0 z-20 flex h-14 shrink-0 items-center gap-6 border-b border-border bg-background/80 px-8 backdrop-blur"
+        "sticky top-0 z-20 flex h-14 shrink-0 items-center gap-6 border-b border-border bg-background/60 px-4 sm:px-6 lg:px-8 backdrop-blur-md"
       )}
     >
       <Breadcrumbs />
@@ -202,7 +214,7 @@ function TopBar() {
 function Footer() {
   return (
     <footer className="h-10 shrink-0 border-t border-border bg-surface">
-      <div className="mx-auto flex h-full max-w-[1400px] items-center justify-between px-8 font-mono text-[10px] text-faint">
+      <div className="mx-auto flex h-full max-w-[1400px] items-center justify-between px-4 sm:px-6 lg:px-8 font-mono text-[10px] text-faint">
         <span>pipeline · flash-lite → 3.1 pro → 3 flash</span>
         <span>SLSA L2 · cosign · Fulcio · Rekor</span>
         <span>apps/web · vite</span>
