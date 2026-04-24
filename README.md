@@ -46,7 +46,7 @@ Understudy watches you do a web workflow once, in 60 seconds, and ships you a si
 | Sponsor prize | How Understudy earns it |
 |---|---|
 | **TinyFish 1st** — 4× Mac Mini + $300 credits + **$2M Accelerator Golden Ticket** | Generated agents are TinyFish CLI + Skill-pinned scripts running on TinyFish's hosted browser cloud; 2× task completion vs MCP |
-| **Wundergraph 1st** — $2,000 cash | **Cosmo Dream Query** used exactly as intended — every new agent's subgraph SDL comes from Dream Query; EDFS optional for event fields |
+| **Wundergraph 1st** — $2,000 cash | **Cosmo Dream Query** used exactly as intended — every new agent's subgraph SDL comes from Dream Query; EDFS optional for event fields; **+ Cosmo Connect — gRPC / REST / OpenAPI surface per agent** |
 | **Chainguard** — $1,000 cash | Every agent image has SLSA L2 provenance predicate + build-time SBOM + keyless cosign via Fulcio + Rekor transparency log |
 | **InsForge 1st** — $1,000 cash | **Remote OAuth MCP** (no stdio), Agent Skills, Model Gateway fallback, PostgREST auto-API, Edge Function Editor |
 | **Redis — Best Agent** — AirPods Pro + 10k credits + hoodies | **Vector Sets int8** (75% memory) + **LangCache** + **Agent Memory Server** (auto topic/entity) — three brand-new agentic features |
