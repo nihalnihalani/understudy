@@ -20,14 +20,26 @@ import argparse
 import asyncio
 import json
 import os
+import shutil
+import subprocess
 import sys
 import uuid
 from pathlib import Path
 
 try:
     from .driver import CosmoDreamQuery
+    from .naming import (
+        InvalidSubgraphName,
+        default_routing_url,
+        validate_subgraph_name,
+    )
 except ImportError:  # pragma: no cover — direct-script execution fallback
     from driver import CosmoDreamQuery  # type: ignore[no-redef]
+    from naming import (  # type: ignore[no-redef]
+        InvalidSubgraphName,
+        default_routing_url,
+        validate_subgraph_name,
+    )
 
 _USE_COLOR = sys.stdout.isatty() and os.environ.get("NO_COLOR") != "1"
 
@@ -122,31 +134,96 @@ async def _cmd_dream(args: argparse.Namespace) -> int:
     return 0
 
 
+def _default_register_script() -> Path:
+    repo_root = Path(__file__).resolve().parents[2]
+    return repo_root / "scripts" / "register_agent_subgraph.sh"
+
+
+def _invoke_register_script(
+    script: Path,
+    name: str,
+    sdl_path: Path,
+    routing_url: str,
+) -> int:
+    """Shell out to `scripts/register_agent_subgraph.sh` — the single source of truth
+    for `wgc subgraph create/publish` + local composition (task #6). Offline-safe.
+    """
+    if not script.exists():
+        print(_red(f"error: register script not found: {script}"), file=sys.stderr)
+        return 2
+    cmd = [
+        "bash",
+        str(script),
+        "--name",
+        name,
+        "--sdl",
+        str(sdl_path),
+        "--routing-url",
+        routing_url,
+    ]
+    print(_cyan("▸ scripts/register_agent_subgraph.sh") + _dim(f"  routing={routing_url}"))
+    try:
+        completed = subprocess.run(cmd, check=False)
+    except FileNotFoundError:
+        print(_red("error: bash not available on PATH"), file=sys.stderr)
+        return 2
+    return completed.returncode
+
+
 async def _cmd_register(args: argparse.Namespace) -> int:
     run_id = args.run_id or f"register-{uuid.uuid4().hex[:8]}"
     sdl_path = Path(args.sdl)
     if not sdl_path.exists():
         print(_red(f"error: sdl file not found: {sdl_path}"), file=sys.stderr)
         return 2
-    sdl = sdl_path.read_text()
 
-    print(_cyan(f"▸ cosmo mcp schema_change_proposal_workflow  ") + _dim(f"subgraph={args.subgraph_name}"))
+    try:
+        validate_subgraph_name(args.subgraph_name)
+    except InvalidSubgraphName as exc:
+        print(_red(f"error: {exc}"), file=sys.stderr)
+        return 2
+
+    sdl = sdl_path.read_text()
+    routing_url = args.routing_url or default_routing_url(args.subgraph_name)
+
+    print(
+        _cyan("▸ cosmo register  ")
+        + _dim(f"subgraph={args.subgraph_name}  routing={routing_url}")
+    )
     _print_sdl_diff(sdl)
+
     async with CosmoDreamQuery(run_id=run_id) as dq:
         report = await dq.validate_against_live_traffic(sdl)
         _print_validation(report.to_dict())
         if report.has_breaking_changes and not args.force:
-            print(_red("refusing to propose: breaking changes detected (use --force to override)"))
+            print(_red("refusing to register: breaking changes detected (use --force to override)"))
             return 1
-
-        version = await dq.propose_schema_change(sdl, args.subgraph_name)
-        _print_composition(version.to_dict())
 
         router_dir = Path(args.router_dir)
         router_dir.mkdir(parents=True, exist_ok=True)
         out = router_dir / f"{args.subgraph_name}.graphql"
-        out.write_text(sdl)
+        # Refuse to clobber a reserved seed even if it somehow made it past name validation.
+        if out.exists() and args.subgraph_name in {"agent_alpha", "agent_beta", "agent_gamma"}:
+            print(_red(f"refusing to overwrite reserved seed {out}"), file=sys.stderr)
+            return 2
+        # Copy the caller's SDL into the subgraphs dir; the shell script will no-op the copy.
+        if out.resolve() != sdl_path.resolve():
+            shutil.copyfile(sdl_path, out)
         print(_dim(f"  wrote {out}"))
+
+        if args.skip_script:
+            print(_yellow("  --skip-script: not invoking register_agent_subgraph.sh"))
+        else:
+            rc = _invoke_register_script(
+                Path(args.register_script),
+                args.subgraph_name,
+                out,
+                routing_url,
+            )
+            if rc != 0:
+                print(_red(f"register_agent_subgraph.sh exited {rc}"), file=sys.stderr)
+                return rc
+            print(_green("composition OK") + _dim(f"  (via register_agent_subgraph.sh)"))
 
         if args.edfs_fields:
             fields = [f.strip() for f in args.edfs_fields.split(",") if f.strip()]
@@ -171,16 +248,31 @@ def _build_parser() -> argparse.ArgumentParser:
 
     reg = subparsers.add_parser(
         "register",
-        help="Propose + compose + publish a subgraph, write SDL to the router's subgraphs/ dir.",
+        help="Write SDL to the router's subgraphs/ dir and invoke register_agent_subgraph.sh.",
     )
     reg.add_argument("--subgraph-name", required=True)
     reg.add_argument("--sdl", required=True, help="Path to a .graphql SDL file.")
     reg.add_argument(
+        "--routing-url",
+        default=None,
+        help="HTTP URL where the agent serves /graphql. Defaults to http://{name}:4001/graphql.",
+    )
+    reg.add_argument(
         "--router-dir",
         default=str(Path(__file__).resolve().parents[1] / "cosmo-router" / "subgraphs"),
     )
+    reg.add_argument(
+        "--register-script",
+        default=str(_default_register_script()),
+        help="Path to the wgc wrapper script (defaults to scripts/register_agent_subgraph.sh).",
+    )
+    reg.add_argument(
+        "--skip-script",
+        action="store_true",
+        help="Write the SDL file but don't invoke the register script (dry run).",
+    )
     reg.add_argument("--edfs-fields", default=None, help="Comma-separated list of event fields to bind.")
-    reg.add_argument("--force", action="store_true", help="Propose even if breaking changes were flagged.")
+    reg.add_argument("--force", action="store_true", help="Register even if breaking changes were flagged.")
     reg.add_argument("--run-id", default=None)
     return parser
 

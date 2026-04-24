@@ -21,6 +21,12 @@ try:
         SubgraphVersion,
         TopicBindings,
     )
+    from .naming import (
+        RESERVED_SUBGRAPH_NAMES,
+        InvalidSubgraphName,
+        default_routing_url,
+        validate_subgraph_name,
+    )
     from .protocol import CosmoMCPClient
 except ImportError:  # pragma: no cover — direct-script execution fallback
     pass
@@ -32,7 +38,11 @@ __all__ = [
     "CosmoMCPClient",
     "CosmoMockMCP",
     "CosmoStdioMCP",
+    "InvalidSubgraphName",
+    "RESERVED_SUBGRAPH_NAMES",
     "SDLDelta",
     "SubgraphVersion",
     "TopicBindings",
+    "default_routing_url",
+    "validate_subgraph_name",
 ]

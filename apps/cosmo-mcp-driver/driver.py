@@ -22,10 +22,12 @@ from typing import Any
 
 try:
     from .clients import CosmoCloudMCP, CosmoMockMCP, CosmoStdioMCP
+    from .naming import default_routing_url, validate_subgraph_name
     from .protocol import CosmoMCPClient
     from .redis_store import DreamStore
 except ImportError:  # pragma: no cover — direct-script execution fallback (hyphen-dir)
     from clients import CosmoCloudMCP, CosmoMockMCP, CosmoStdioMCP  # type: ignore[no-redef]
+    from naming import default_routing_url, validate_subgraph_name  # type: ignore[no-redef]
     from protocol import CosmoMCPClient  # type: ignore[no-redef]
     from redis_store import DreamStore  # type: ignore[no-redef]
 
@@ -166,12 +168,30 @@ class CosmoDreamQuery:
         return report
 
     async def propose_schema_change(
-        self, sdl_delta: str, subgraph_name: str
+        self,
+        sdl_delta: str,
+        subgraph_name: str,
+        routing_url: str | None = None,
     ) -> SubgraphVersion:
-        """Run `schema_change_proposal_workflow` — propose → compose → publish."""
+        """Run `schema_change_proposal_workflow` — propose → compose → publish.
+
+        `routing_url` is the HTTP URL where the generated agent serves its subgraph
+        (e.g. `http://agent_alpha:4001/graphql` on the docker-compose network). When
+        omitted, defaults to the docker-network convention so CLI callers get sane
+        behavior without having to spell it out on every invocation. This matches the
+        contract agreed with task #6 — the driver owns the default, the shell wrapper
+        stays flag-only.
+        """
+        validate_subgraph_name(subgraph_name)
+        if routing_url is None:
+            routing_url = default_routing_url(subgraph_name)
         result = await self._client.call_tool(
             "schema_change_proposal_workflow",
-            {"sdl_delta": sdl_delta, "subgraph_name": subgraph_name},
+            {
+                "sdl_delta": sdl_delta,
+                "subgraph_name": subgraph_name,
+                "routing_url": routing_url,
+            },
         )
         version = SubgraphVersion(
             subgraph_id=str(result["subgraph_id"]),
@@ -186,6 +206,7 @@ class CosmoDreamQuery:
                     "subgraph_id": version.subgraph_id,
                     "subgraph_version": version.version,
                     "composition_check": version.composition_check,
+                    "routing_url": routing_url,
                 },
             )
         return version

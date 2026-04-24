@@ -14,14 +14,24 @@ Vite + React + TypeScript + Tailwind. Five screens map 1:1 to the five `README.m
 
 ## Run it
 
-Requires Node >= 20. The app lives inside a workspace with a not-yet-published `@tinyfish/cli` dep in `apps/agent-template`; npm gets confused if you try to install from the repo root, so install from inside `apps/web/` with `--workspaces=false`:
+Requires Node >= 20. Root-level `npm install` works — the `@tinyfish/cli` dep in `apps/agent-template` resolves to a local dev stub at `apps/agent-template/stubs/tinyfish-cli/`; the Chainguard production build swaps in the real package.
+
+```bash
+# from repo root — installs the whole workspace (~412 packages)
+npm install
+
+# then drive the web app via workspace scripts
+npm run -w apps/web dev          # Vite on http://localhost:5173
+npm run -w apps/web build        # production bundle -> apps/web/dist/
+npm run -w apps/web typecheck
+```
+
+Or work from inside `apps/web/` directly once the root install is done:
 
 ```bash
 cd apps/web
-npm install --workspaces=false   # 140 packages, no network games
-npm run dev                      # Vite on http://localhost:5173
-npm run build                    # production bundle -> dist/
-npm run typecheck                # no-op on clean main
+npm run dev
+npm run build
 ```
 
 During `npm run dev`, Vite proxies `/api/*` to the FastAPI on `http://localhost:8080` (see `vite.config.ts`). Start the API separately:

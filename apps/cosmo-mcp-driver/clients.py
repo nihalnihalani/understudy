@@ -188,6 +188,7 @@ class CosmoMockMCP:
                 "version": "v1.0.0",
                 "composition_check": True,
                 "composed_supergraph_url": "https://cosmo.local/studio/supergraph/mock",
+                "routing_url": arguments.get("routing_url"),
             }
         if name == "register_edfs_events":
             fields = arguments.get("fields", [])

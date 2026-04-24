@@ -43,6 +43,7 @@ def _propose_response(arguments: dict) -> dict:
         "version": "v0.1.0",
         "composition_check": True,
         "composed_supergraph_url": "https://cosmo.test/supergraph/fake",
+        "routing_url": arguments.get("routing_url"),
     }
 
 
