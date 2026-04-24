@@ -264,7 +264,12 @@ jobs:
           INSFORGE_URL: ${{ secrets.INSFORGE_URL }}
           INSFORGE_API_KEY: ${{ secrets.INSFORGE_API_KEY }}
           IMAGE_DIGEST: ${{ needs.build-sign-push.outputs.digest }}
-          REGISTRY: ${{ env.REGISTRY }}
+          # Full registry path so the `image.registry` column matches what the
+          # worker persists (apps/synthesis-worker/main.py:DEFAULT_REGISTRY).
+          # Without IMAGE_NAME suffix, CI would write "ghcr.io" and the worker
+          # would write "ghcr.io/nihalnihalani/understudy-agent-base", creating
+          # first-writer-wins column drift on the same image.digest PK.
+          REGISTRY: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
         run: |
           set -uo pipefail
           if [[ -z "${INSFORGE_URL:-}" || -z "${INSFORGE_API_KEY:-}" ]]; then
@@ -302,9 +307,14 @@ jobs:
           fi
 
           # 2. slsa_attestation — extract in-toto materials from the SLSA generator predicate.
+          # Both CI and worker write `materials` as a jsonb OBJECT with a
+          # `resolved_dependencies` array inside (shape mirrored in
+          # apps/synthesis-worker/main.py:_persist_artifacts). The schema column
+          # is jsonb DEFAULT '{}'::jsonb — a bare array would satisfy the type
+          # but break the worker/UI's dict-shape assumption.
           if [[ -n "${PREDICATE}" && -f "${PREDICATE}" ]]; then
             # .intoto.jsonl is one DSSE envelope per line; payload is base64 in-toto statement.
-            materials_json=$(jq -sR '
+            deps_array=$(jq -sR '
               split("\n") | map(select(length>0)) | .[0]
               | fromjson
               | .payload
@@ -330,10 +340,16 @@ jobs:
             ' "${PREDICATE}" 2>/dev/null || echo '"https://slsa.dev/provenance/v1"')
           else
             echo "::warning::SLSA predicate not found at slsa-provenance/*.intoto.jsonl — using empty materials."
-            materials_json='[]'
+            deps_array='[]'
             builder_id='"unknown"'
             predicate_type='"https://slsa.dev/provenance/v1"'
           fi
+
+          # Wrap the array in the shared `resolved_dependencies` dict shape.
+          materials_json=$(jq -cn \
+            --argjson deps "${deps_array}" \
+            --arg bt "https://slsa.dev/container-based-build/v0.1" \
+            '{resolved_dependencies:$deps, build_type:$bt}')
 
           slsa_body=$(jq -cn \
             --arg digest "${IMAGE_DIGEST}" \

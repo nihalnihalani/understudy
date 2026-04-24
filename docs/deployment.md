@@ -28,7 +28,7 @@ flowchart LR
 
 ## 1. Build + sign (GitHub Actions)
 
-Trigger: push to `main` or tag `v*`. Source: `infra/github-actions/release.yml`.
+Trigger: push to `main` or tag `v*`. Source: `.github/workflows/release.yml`.
 
 | Step | What runs | Why |
 |---|---|---|

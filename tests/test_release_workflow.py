@@ -1,4 +1,4 @@
-"""Guardrails on infra/github-actions/release.yml (architecture.md §6).
+"""Guardrails on .github/workflows/release.yml (architecture.md §6).
 
 We don't execute the workflow; we parse it and assert:
 
@@ -21,7 +21,7 @@ import pytest
 
 yaml = pytest.importorskip("yaml")
 
-RELEASE_YML = Path(__file__).resolve().parents[1] / "infra" / "github-actions" / "release.yml"
+RELEASE_YML = Path(__file__).resolve().parents[1] / ".github" / "workflows" / "release.yml"
 
 
 def _load() -> dict:
