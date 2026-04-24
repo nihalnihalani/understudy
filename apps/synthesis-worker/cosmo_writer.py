@@ -70,6 +70,13 @@ async def push_trusted_documents(
     if demo_mode == "replay":
         cached = await redis.hget(f"us:replay:{synth_id}:protocols", "endpoints")
         endpoints = json.loads(cached) if cached else _endpoint_set(agent_name)
+        # Mirror to the canonical us:agent:{name}:protocols key so the API
+        # endpoint /agents/{id}/protocols resolves in replay mode the same
+        # way it does in live mode (replay-mode hermeticity, invariant #2).
+        await redis.hset(
+            f"us:agent:{agent_name}:protocols",
+            mapping={"endpoints": json.dumps(endpoints)},
+        )
         return PushResult(endpoints=endpoints, wgc_skipped=True)
 
     # --- Live / hybrid: write files + cache endpoints + best-effort wgc push. ---

@@ -46,15 +46,24 @@ async def test_replay_mode_returns_canned_endpoints_and_skips_wgc(
             )
         },
     )
+    async def runner_must_not_fire(_argv: list[str]) -> tuple[int, str, str]:
+        raise AssertionError("wgc must not be invoked in replay mode")
+
     result = await push_trusted_documents(
         agent_name="agent_orders",
         synth_id="s1",
         documents=DOCS,
         operations_dir=tmp_path,
         redis=redis,
+        runner=runner_must_not_fire,
     )
     assert result.endpoints["grpc"].endswith("/connect/agent_orders")
     assert result.wgc_skipped is True
+    # The replay branch must mirror endpoints to the canonical key so the
+    # /agents/{id}/protocols API resolves in replay mode (invariant #2).
+    cached = await redis.hget("us:agent:agent_orders:protocols", "endpoints")
+    assert cached is not None
+    assert "agent_orders" in json.loads(cached)["grpc"]
 
 
 @pytest.mark.asyncio
