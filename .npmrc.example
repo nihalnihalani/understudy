@@ -1,19 +1,22 @@
 # Chainguard Libraries — JavaScript (malware-resistant rebuilt-from-source npm mirror).
 #
+# This file lives at repo root because understudy/ is an npm workspaces
+# monorepo (see package.json "workspaces"). npm ignores per-workspace .npmrc
+# files when a root one is present.
+#
 # To use:
 #   1. cp .npmrc.example .npmrc
 #   2. Run: chainctl auth pull-token --repository=javascript --ttl=720h
-#      → save the Username + Password.
+#      → copy the printed Username and Password.
 #   3. Compute the _auth value:
 #        echo -n 'USERNAME:PASSWORD' | base64
 #      → replace {BASE64_OF_USERNAME_PASSWORD} below with that string.
 #   4. .npmrc is .gitignored — never commit the real file.
 #
-# scripts/chainguard_init.sh automates steps 2–3 end-to-end; run that instead
-# if you want a one-shot bootstrap.
+# scripts/chainguard_init.sh automates steps 2–3 end-to-end (also handles
+# pip.conf in the same pass). Run that instead for a one-shot bootstrap.
 #
 # Docs: https://edu.chainguard.dev/chainguard/libraries/javascript/
 
 registry=https://libraries.cgr.dev/javascript/
 //libraries.cgr.dev/javascript/:_auth={BASE64_OF_USERNAME_PASSWORD}
-//libraries.cgr.dev/javascript/:always-auth=true

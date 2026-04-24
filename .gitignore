@@ -36,6 +36,6 @@ rekor-entry.json
 pip.conf
 !pip.conf.example
 .env.chainguard
-apps/web/.npmrc
-apps/agent-template/.npmrc
+.npmrc
+!.npmrc.example
 chainguard-setup.md

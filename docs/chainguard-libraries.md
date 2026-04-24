@@ -168,9 +168,10 @@ echo -n 'USERNAME:PASSWORD' | base64
 ### Local dev — `.npmrc`
 
 ```bash
-cp apps/web/.npmrc.example apps/web/.npmrc
-cp apps/agent-template/.npmrc.example apps/agent-template/.npmrc
-# Edit both: replace {BASE64_OF_USERNAME_PASSWORD} with the base64 value above.
+cp .npmrc.example .npmrc
+# Edit: replace {BASE64_OF_USERNAME_PASSWORD} with the base64 value above.
+# NOTE: understudy/ is an npm-workspaces monorepo — the .npmrc MUST live at
+# repo root. Per-workspace .npmrc files are silently ignored by npm.
 ```
 
 Then `npm install` in either directory pulls from Chainguard's mirror.
@@ -178,7 +179,8 @@ Then `npm install` in either directory pulls from Chainguard's mirror.
 Quick check:
 
 ```bash
-cd apps/web && npm install --dry-run react 2>&1 | grep 'libraries.cgr.dev'
+npm view react dist.tarball
+# → https://libraries.cgr.dev/javascript/react/-/react-18.x.x.tgz
 ```
 
 ### Generated agents — `--build-arg`

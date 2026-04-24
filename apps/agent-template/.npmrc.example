@@ -1,9 +1,0 @@
-# Chainguard Libraries — JavaScript (malware-resistant rebuilt-from-source npm mirror).
-# Generated agents inherit the same supply-chain posture as the Understudy base image.
-#
-# Same format as apps/web/.npmrc.example — see that file for the full instructions,
-# or run scripts/chainguard_init.sh to auto-generate both.
-
-registry=https://libraries.cgr.dev/javascript/
-//libraries.cgr.dev/javascript/:_auth={BASE64_OF_USERNAME_PASSWORD}
-//libraries.cgr.dev/javascript/:always-auth=true
