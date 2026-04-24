@@ -172,6 +172,62 @@ def test_migrations_have_no_transaction_wrapper() -> None:
             )
 
 
+def test_rls_enabled_on_all_tables() -> None:
+    """Every public table must have a matching `ENABLE ROW LEVEL SECURITY`.
+
+    Parses the RLS migration file(s) and asserts that every table declared
+    in `migrations/*_initial-schema.sql` has a corresponding ALTER TABLE ...
+    ENABLE ROW LEVEL SECURITY statement. Without RLS, anon PostgREST reads
+    would surface full table contents unconstrained.
+    """
+    if not MIGRATIONS_DIR.exists():
+        return
+    migration_sql = "\n".join(p.read_text() for p in sorted(MIGRATIONS_DIR.glob("*.sql")))
+    # Every table in EXPECTED_TABLES must appear in an ENABLE RLS statement.
+    enabled = {
+        m.group(1).lower()
+        for m in re.finditer(
+            r"ALTER\s+TABLE\s+(\w+)\s+ENABLE\s+ROW\s+LEVEL\s+SECURITY\s*;",
+            migration_sql,
+            re.IGNORECASE,
+        )
+    }
+    missing = EXPECTED_TABLES - enabled
+    assert not missing, (
+        f"RLS not enabled on tables: {sorted(missing)} — anon reads would "
+        f"return unconstrained rows. Add ALTER TABLE ... ENABLE ROW LEVEL "
+        f"SECURITY in a migration."
+    )
+
+
+def test_agent_memories_anon_policy_absent() -> None:
+    """`agent_memories` must NOT have an anon SELECT policy.
+
+    Per-agent private state (Redis-mirrored memories + 1536-dim embeddings).
+    With RLS enabled and zero anon policies, anon SELECT returns zero rows;
+    admin path (INSFORGE_API_KEY) bypasses RLS and remains fully functional.
+    """
+    if not MIGRATIONS_DIR.exists():
+        return
+    migration_sql = "\n".join(p.read_text() for p in sorted(MIGRATIONS_DIR.glob("*.sql")))
+    # Find every CREATE POLICY ... ON <table> ... TO anon ... statement, and
+    # make sure none target agent_memories for SELECT.
+    for m in re.finditer(
+        r"CREATE\s+POLICY\s+\w+\s+ON\s+(\w+)\s+FOR\s+(\w+)\s+TO\s+([\w,\s]+?)\s+USING",
+        migration_sql,
+        re.IGNORECASE | re.DOTALL,
+    ):
+        table = m.group(1).lower()
+        op = m.group(2).upper()
+        roles = [r.strip().lower() for r in m.group(3).split(",")]
+        if table == "agent_memories" and "anon" in roles and op in {"SELECT", "ALL"}:
+            raise AssertionError(
+                "agent_memories has an anon SELECT policy — this table is "
+                "per-agent private state and must only be reachable via the "
+                "admin API key."
+            )
+
+
 def test_referential_integrity_fks_present() -> None:
     """FK relationships from the §8 ER diagram must exist."""
     sql = SCHEMA_SQL.read_text().lower()

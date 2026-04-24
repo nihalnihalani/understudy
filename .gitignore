@@ -42,3 +42,22 @@ chainguard-setup.md
 
 # Local debug logs from scripts/dev-debug.sh
 logs/
+
+# InsForge & AI agent skills — local caches only; committed config under
+# .claude/{agents,settings.json,skills} stays tracked.
+.insforge
+.agent
+.agents
+.augment
+.claude/worktrees/
+.claude/plugins/
+.claude/cache/
+.claude/local.*
+.cline
+.github/copilot*
+.kilocode
+.qoder
+.qwen
+.roo
+.trae
+.windsurf

@@ -46,7 +46,7 @@ from .schemas import (
     SynthesizeAccepted,
     TraceEvent,
 )
-from .store import Store, get_store
+from .store import InsforgeStore, Store, get_store
 
 
 MAX_UPLOAD_BYTES = 200 * 1024 * 1024  # 200 MB — 60s 1080p mp4 fits comfortably
@@ -149,7 +149,7 @@ async def healthz(redis: RedisClient = Depends(get_redis)) -> HealthResponse:
 async def synthesize(
     recording: UploadFile = File(..., description="mp4 screen capture, up to 60s"),
     redis: RedisClient = Depends(get_redis),
-    store: Store = Depends(get_store),
+    store: Store | InsforgeStore = Depends(get_store),
 ) -> SynthesizeAccepted:
     """Accept an mp4 upload, create a SYNTHESIS_RUN, enqueue on `jobs:synthesis`.
 
@@ -183,8 +183,10 @@ async def synthesize(
             fh.write(chunk)
     await recording.close()
 
-    run = store.create_run(recording_id=recording_id)
     recording_uri = f"file://{dest}"
+    # duration_s is an upper-bound placeholder until ffprobe lands; InsForge only
+    # uses it to satisfy the NOT NULL CHECK constraint on `recording.duration_s`.
+    run = store.create_run(recording_id=recording_id, s3_uri=recording_uri, duration_s=60)
 
     await redis.append_trace(
         run.id,
@@ -202,7 +204,7 @@ async def synthesize(
 async def get_synthesis(
     id: UUID,
     redis: RedisClient = Depends(get_redis),
-    store: Store = Depends(get_store),
+    store: Store | InsforgeStore = Depends(get_store),
 ) -> SynthesisRunDetail:
     """Return the SynthesisRun row + the full `run:synth:{id}` trace stream."""
     run = store.get_run(id)
@@ -235,7 +237,7 @@ async def stream_synthesis(
     id: UUID,
     request: Request,
     redis: RedisClient = Depends(get_redis),
-    store: Store = Depends(get_store),
+    store: Store | InsforgeStore = Depends(get_store),
 ) -> StreamingResponse:
     """SSE feed of the `run:synth:{id}` Redis Stream — replays history then tails live.
 

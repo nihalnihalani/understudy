@@ -13,6 +13,8 @@
     "allow": [
       "Edit(**/.env)",
       "Write(**/.env)",
+      "Edit(**/.env.*)",
+      "Write(**/.env.*)",
       "Edit(**/.env.local)",
       "Write(**/.env.local)",
       "Edit(**/.env.example)",

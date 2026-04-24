@@ -27,6 +27,7 @@ import redis.asyncio as aioredis
 # direct-script run from the hyphenated dir.
 try:
     from .gemini_client import GeminiClient
+    from .insforge_writer import InsforgeWriter
     from .langcache import LangCache
     from .pipeline import SynthesisResult, run_pipeline, run_trace_key
 except ImportError:  # pragma: no cover — direct-script execution fallback
@@ -35,6 +36,7 @@ except ImportError:  # pragma: no cover — direct-script execution fallback
 
     sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
     from gemini_client import GeminiClient  # type: ignore[no-redef]
+    from insforge_writer import InsforgeWriter  # type: ignore[no-redef]
     from langcache import LangCache  # type: ignore[no-redef]
     from pipeline import SynthesisResult, run_pipeline, run_trace_key  # type: ignore[no-redef]
 
@@ -43,6 +45,21 @@ log = logging.getLogger("synthesis_worker")
 JOBS_STREAM = "jobs:synthesis"
 CONSUMER_GROUP = "synthesis-workers"
 CONSUMER_NAME = os.environ.get("WORKER_ID", "worker-1")
+
+# Defaults for fields that don't yet exist in the pipeline output (e.g. cosign
+# signature for an image we haven't yet pushed to the registry). These match
+# the convention in apps/api/store.py:build_attestation so the InsforgeStore
+# read path merges cleanly.
+DEFAULT_REGISTRY = os.environ.get(
+    "AGENT_IMAGE_REGISTRY", "ghcr.io/nihalnihalani/understudy-agent-base"
+)
+DEFAULT_BUILDER_ID = os.environ.get(
+    "COSIGN_CERT_IDENTITY",
+    "https://github.com/nihalnihalani/understudy/.github/workflows/release.yml@refs/heads/main",
+)
+DEFAULT_GRAPHQL_BASE = os.environ.get(
+    "COSMO_GRAPHQL_BASE", "https://cosmo.understudy.dev/agents"
+)
 
 
 async def _load_recording(recording_uri: str) -> bytes:
@@ -77,8 +94,70 @@ async def _write_trace(redis: aioredis.Redis, run_id: str, stage: str, data: Any
     )
 
 
+def _derive_image_digest(synth_id: str) -> str:
+    """Stable per-synth pseudo-digest until real CI build provides one.
+
+    Matches the `sha256:<64hex>` shape `apps/api/store.py:build_attestation`
+    expects so the read path enrichment merges cleanly. Marked `pending:` in
+    the cosign_sig field so reviewers can see it's not yet a real signature.
+    """
+    import hashlib
+
+    h = hashlib.sha256(synth_id.encode("utf-8")).hexdigest()
+    return f"sha256:{h}"
+
+
+def _persist_artifacts(writer: InsforgeWriter, result: SynthesisResult) -> None:
+    """INSERT image / slsa / sbom / agent rows for a completed synthesis.
+
+    Best-effort: failures are logged inside InsforgeWriter and never raise out
+    of here. The synthesis result has already been published to Redis by the
+    time we get here, so DB persistence is purely additive.
+    """
+    if not writer.enabled:
+        return
+
+    image_digest = _derive_image_digest(result.synth_id)
+    # Pull SBOM components from the script bundle's pinned skills if present;
+    # otherwise pass an empty list (NOT NULL default in schema is '[]'::jsonb).
+    skills = result.bundle.skills_pinned or []
+    sbom_components: list[dict[str, Any]] = [
+        {
+            "name": s.get("name", "unknown"),
+            "version": s.get("version", "0.0.0"),
+            "type": "tinyfish-skill",
+        }
+        for s in skills
+    ]
+
+    materials = {
+        "source": {"uri": "git+https://github.com/nihalnihalani/understudy"},
+        "synth_id": result.synth_id,
+        "build_type": "https://slsa.dev/container-based-build/v0.1",
+    }
+
+    short = image_digest.removeprefix("sha256:")[:12]
+    try:
+        writer.persist_agent_artifacts(
+            image_digest=image_digest,
+            registry=DEFAULT_REGISTRY,
+            builder_id=DEFAULT_BUILDER_ID,
+            materials=materials,
+            sbom_components=sbom_components,
+            cosign_sig=f"pending:{short}",
+            graphql_endpoint=f"{DEFAULT_GRAPHQL_BASE}/{result.synth_id}/graphql",
+            ams_namespace=f"ams:agent:{result.synth_id}",
+        )
+    except Exception:
+        log.exception("persist_agent_artifacts failed for synth_id=%s", result.synth_id)
+
+
 async def _process_job(
-    redis: aioredis.Redis, gemini: GeminiClient, msg_id: str, fields: dict[str, str]
+    redis: aioredis.Redis,
+    gemini: GeminiClient,
+    writer: InsforgeWriter,
+    msg_id: str,
+    fields: dict[str, str],
 ) -> None:
     # The API enqueues `run_id` (the SYNTHESIS_RUN row id from architecture.md §8);
     # the worker's internal naming is `synth_id`. They are the same UUID — accept
@@ -103,6 +182,11 @@ async def _process_job(
     )
 
     await _publish_result(redis, result)
+    # Best-effort DB persistence: the worker is the place where the image
+    # digest + signed-agent triple becomes real. Done in a thread so the httpx
+    # sync client doesn't block the asyncio loop. Failures are non-fatal —
+    # the SynthesisResult is already in Redis as primary truth.
+    await asyncio.to_thread(_persist_artifacts, writer, result)
     await _write_trace(redis, synth_id, "pipeline_completed", {"script_chars": len(result.bundle.script)})
     await redis.xack(JOBS_STREAM, CONSUMER_GROUP, msg_id)
 
@@ -134,14 +218,16 @@ async def run_worker() -> None:
 
     langcache = LangCache(redis)
     gemini = GeminiClient(langcache=langcache)
+    writer = InsforgeWriter()
 
     await _ensure_group(redis)
     log.info(
-        "synthesis-worker running: stream=%s group=%s consumer=%s demo_mode=%s",
+        "synthesis-worker running: stream=%s group=%s consumer=%s demo_mode=%s insforge=%s",
         JOBS_STREAM,
         CONSUMER_GROUP,
         CONSUMER_NAME,
         os.environ.get("DEMO_MODE", "live"),
+        "on" if writer.enabled else "off",
     )
 
     stop_event = asyncio.Event()
@@ -175,11 +261,12 @@ async def run_worker() -> None:
         for _stream, messages in entries:
             for msg_id, fields in messages:
                 try:
-                    await _process_job(redis, gemini, msg_id, fields)
+                    await _process_job(redis, gemini, writer, msg_id, fields)
                 except Exception:
                     log.exception("job failed msg=%s", msg_id)
 
     log.info("synthesis-worker shutting down")
+    writer.close()
     await redis.aclose()
 
 
