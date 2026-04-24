@@ -1,5 +1,16 @@
 # Understudy
 
+<p align="center">
+  <img src="https://img.shields.io/badge/Gemini_3-8E75B2?style=for-the-badge&logo=google-gemini&logoColor=white" />
+  <img src="https://img.shields.io/badge/Wundergraph_Cosmo-E03C8A?style=for-the-badge&logo=graphql&logoColor=white" />
+  <img src="https://img.shields.io/badge/Chainguard-000000?style=for-the-badge&logo=linux&logoColor=white" />
+  <img src="https://img.shields.io/badge/Redis_8-DC382D?style=for-the-badge&logo=redis&logoColor=white" />
+  <img src="https://img.shields.io/badge/Python_3.11-3776AB?style=for-the-badge&logo=python&logoColor=white" />
+  <img src="https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white" />
+  <img src="https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB" />
+  <img src="https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white" />
+</p>
+
 ### Record once. Ship a signed agent.
 
 Understudy turns any 60-second screen recording into a signed, production-deployed web agent with a typed federated GraphQL API and persistent memory — no code, no prompts. Show it once, ship it forever.
@@ -140,7 +151,7 @@ We explicitly avoided basic "checkbox" integrations. Every tool is load-bearing 
 
 | Tool | Basic Use (What we DIDN'T do) | Our Creative Use (What we DID) |
 |---|---|---|
-| **Wundergraph Cosmo** | Merely routing standard GraphQL | **Schema Synthesis Inversion**: Using Dream Query to actively *synthesize* the subgraph SDL from the agent's desired target shape. |
+| **Wundergraph Cosmo** | Merely routing standard GraphQL | **Schema Synthesis Inversion**: Using Dream Query to actively *synthesize* the subgraph SDL from the agent's desired target shape. **Cosmo Connect** then exposes every synthesized agent as gRPC + REST + OpenAPI (Trusted Documents pushed via `wgc operations push`), not just GraphQL. |
 | **Chainguard** | Just using a base image | Implementing a **cryptographic boot refusal** pipeline. Fly.io pre-start hooks verify the SLSA L2 provenance and Rekor inclusion *before* the agent is allowed to boot. |
 | **Redis 8** | Simple key-value caching | Implementing **int8 Vector Sets** (saving 75% memory with 99%+ recall) and an **Agent Memory Server** that automatically extracts topics/entities into short and long-term memory streams. |
 | **TinyFish** | A simple local browser agent | Compiling the output natively into a **TinyFish CLI script** and executing it strictly on TinyFish's hosted browser cloud, treating the browser as remote infrastructure. |

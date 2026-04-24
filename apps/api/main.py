@@ -15,6 +15,7 @@ Boot: `python -m uvicorn apps.api.main:app --reload` from repo root.
 
 from __future__ import annotations
 
+import json
 import os
 import json
 import time
@@ -37,6 +38,7 @@ from understudy.models import (
 from .redis_client import RedisClient, get_redis
 from .schemas import (
     Agent,
+    AgentProtocols,
     DemoMode,
     FullAttestation,
     HealthResponse,
@@ -334,6 +336,42 @@ async def get_agent_attestation(id: UUID, store: Store = Depends(get_store)) -> 
     if bundle is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"no agent {id}")
     return bundle
+
+
+@app.get("/agents/{agent_id}/protocols", response_model=AgentProtocols)
+async def get_agent_protocols(
+    agent_id: str, redis: RedisClient = Depends(get_redis)
+) -> AgentProtocols:
+    """Return the four Cosmo Connect endpoints (graphql / grpc / rest / openapi).
+
+    Backed by `us:agent:{agent_id}:protocols` hash (field `endpoints`) populated
+    by apps/synthesis-worker/cosmo_writer.py after Trusted Documents are pushed.
+    Pre-warmed for seed agents by scripts/prewarm_demo.py (DEMO_MODE=replay).
+
+    `agent_id` is taken as a free-form string here (not UUID) because synthesized
+    agents are identified by their subgraph name (e.g. `agent_orders`), not by the
+    Postgres AGENT.id UUID surfaced on /agents/{id}.
+    """
+    conn = await redis._get()
+    if conn is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="redis unavailable",
+        )
+    raw = await conn.hget(f"us:agent:{agent_id}:protocols", "endpoints")  # type: ignore[misc]
+    if raw is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"agent {agent_id} has no protocols cached",
+        )
+    try:
+        endpoints = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"corrupt protocols entry for {agent_id}: {exc}",
+        ) from exc
+    return AgentProtocols(agent_id=agent_id, endpoints=endpoints)
 
 
 @app.post("/demo/replay/{synth_id}", response_model=ReplayResponse)

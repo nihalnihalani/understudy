@@ -39,6 +39,7 @@ try:  # dual-form import: package mode OR flat sys.path-injected mode
         INTENT_ABSTRACTION_SYSTEM,
         SCRIPT_EMISSION_SYSTEM,
     )
+    from .trusted_documents import TrustedDocument, emit_trusted_documents
 except ImportError:  # pragma: no cover — exercised when loaded via sys.path injection
     from gemini_client import GeminiClient  # type: ignore[no-redef]
     from keyframes import (  # type: ignore[no-redef]
@@ -52,6 +53,10 @@ except ImportError:  # pragma: no cover — exercised when loaded via sys.path i
         INTENT_ABSTRACTION_OUTPUT_SCHEMA,
         INTENT_ABSTRACTION_SYSTEM,
         SCRIPT_EMISSION_SYSTEM,
+    )
+    from trusted_documents import (  # type: ignore[no-redef]
+        TrustedDocument,
+        emit_trusted_documents,
     )
 
 log = logging.getLogger(__name__)
@@ -265,6 +270,7 @@ class SynthesisResult:
     actions: list[ActionEvent]
     intent: IntentSpec
     bundle: TinyFishScriptBundle
+    trusted_documents: list[TrustedDocument]
 
 
 async def run_pipeline(
@@ -306,10 +312,16 @@ async def run_pipeline(
         redis=redis,
         cosmo_sdl_override=cosmo_sdl_override,
     )
+    trusted_documents = (
+        emit_trusted_documents(bundle.cosmo_sdl, agent_name=synth_id)
+        if bundle.cosmo_sdl
+        else []
+    )
     return SynthesisResult(
         synth_id=synth_id,
         keyframes=keyframes,
         actions=actions,
         intent=intent,
         bundle=bundle,
+        trusted_documents=trusted_documents,
     )
