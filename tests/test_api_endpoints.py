@@ -125,3 +125,38 @@ async def test_demo_replay_reads_us_replay_key(api_client) -> None:
 async def test_demo_replay_miss_returns_404(api_client) -> None:
     r = await api_client.post(f"/demo/replay/{uuid4()}")
     assert r.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_get_agent_protocols_returns_four_endpoints(api_client) -> None:
+    """GET /agents/{agent_id}/protocols returns the four Cosmo Connect endpoints.
+
+    Redis key shape matches what apps/synthesis-worker/cosmo_writer.py writes:
+    `us:agent:{agent_name}:protocols` hash with field `endpoints` containing
+    JSON {graphql, grpc, rest, openapi}.
+    """
+    redis_client = api_client._understudy_redis
+    conn = await redis_client._get()
+    endpoints = {
+        "graphql": "http://localhost:4000/graphql",
+        "grpc": "http://localhost:4000/connect/agent_orders",
+        "rest": "http://localhost:4000/connect/agent_orders/json",
+        "openapi": "http://localhost:4000/connect/agent_orders/openapi.json",
+    }
+    await conn.hset(
+        "us:agent:agent_orders:protocols",
+        mapping={"endpoints": json.dumps(endpoints)},
+    )
+
+    r = await api_client.get("/agents/agent_orders/protocols")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["agent_id"] == "agent_orders"
+    assert sorted(body["endpoints"].keys()) == ["graphql", "grpc", "openapi", "rest"]
+    assert body["endpoints"]["grpc"].endswith("/connect/agent_orders")
+
+
+@pytest.mark.asyncio
+async def test_get_agent_protocols_missing_returns_404(api_client) -> None:
+    r = await api_client.get("/agents/no_such_agent/protocols")
+    assert r.status_code == 404

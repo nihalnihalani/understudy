@@ -200,6 +200,18 @@ class ReplayResponse(BaseModel):
     payload: dict[str, Any]
 
 
+class AgentProtocols(BaseModel):
+    """GET /agents/{agent_id}/protocols response — Cosmo Connect endpoint set.
+
+    Backed by `us:agent:{agent_id}:protocols` hash (field `endpoints`) written
+    by apps/synthesis-worker/cosmo_writer.py after Trusted Documents are pushed.
+    `endpoints` keys are graphql / grpc / rest / openapi.
+    """
+
+    agent_id: str
+    endpoints: dict[str, str]
+
+
 class FullAttestation(BaseModel):
     """GET /agents/{id}/attestation — bundle the Supply Chain page renders from.
 
