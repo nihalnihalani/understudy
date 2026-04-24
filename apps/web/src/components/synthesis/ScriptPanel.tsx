@@ -40,8 +40,8 @@ export function ScriptPanel({
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <header className="flex items-center justify-between border-b border-border px-3 py-2">
+    <div className="flex h-full min-h-0 flex-col rounded-xl border border-white/10 bg-white/5 backdrop-blur-2xl shadow-[0_8px_40px_rgba(0,0,0,0.4)] overflow-hidden">
+      <header className="flex items-center justify-between border-b border-white/10 bg-black/40 px-3 py-2 backdrop-blur-xl">
         <div className="flex items-center gap-2">
           <span className="font-mono text-[11px] text-muted-foreground">
             {filename}
@@ -70,7 +70,7 @@ export function ScriptPanel({
           </Button>
         </div>
       </header>
-      <ScrollArea className="flex-1 bg-background/60">
+      <ScrollArea className="flex-1 bg-black/40 backdrop-blur-md">
         <pre className="m-0 p-3 font-mono text-[12px] leading-[1.65]">
           {lines.map((line, i) => (
             <div key={i} className="flex gap-3">
@@ -82,7 +82,7 @@ export function ScriptPanel({
           ))}
         </pre>
       </ScrollArea>
-      <footer className="flex items-center justify-between border-t border-border px-3 py-2 font-mono text-[11px] text-muted-foreground">
+      <footer className="flex items-center justify-between border-t border-white/10 bg-black/40 px-3 py-2 font-mono text-[11px] text-muted-foreground backdrop-blur-xl">
         <span>{footerNote}</span>
         <Badge variant="success">SWE-bench 78%</Badge>
       </footer>

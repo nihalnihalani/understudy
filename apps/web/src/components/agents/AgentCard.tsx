@@ -63,11 +63,11 @@ export const AgentCard = forwardRef<HTMLDivElement, AgentCardProps>(
         onClick={onOpen}
         onKeyDown={handleKey}
         className={cn(
-          "group relative flex h-full flex-col gap-3 rounded-lg border bg-surface p-4",
-        "transition-all duration-base",
-        "hover:-translate-y-1 hover:border-primary/60 hover:shadow-md",
+          "group relative flex h-full flex-col gap-3 rounded-xl border bg-white/5 p-4 backdrop-blur-xl",
+        "transition-all duration-500 ease-out",
+        "hover:scale-[1.02] hover:border-white/20 hover:bg-white/10 hover:shadow-[0_8px_30px_rgba(0,0,0,0.5)]",
           "focus-visible:outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring",
-          selected ? "border-primary ring-1 ring-primary/40" : "border-border"
+          selected ? "border-primary/50 ring-1 ring-primary/40 shadow-[0_0_30px_hsl(var(--primary)/0.2)] bg-primary/5" : "border-white/10"
         )}
       >
         <header className="flex items-start justify-between gap-2">

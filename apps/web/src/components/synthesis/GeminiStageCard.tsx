@@ -56,13 +56,14 @@ export function GeminiStageCard({
   return (
     <Card
       className={cn(
-        "flex flex-col gap-3 p-4 bg-surface/40",
-        "transition-all duration-base",
+        "flex flex-col gap-3 p-4 bg-white/5 backdrop-blur-2xl border-white/10 rounded-xl",
+        "transition-all duration-500 ease-out",
+        "hover:bg-white/10 hover:border-white/20 hover:shadow-[0_8px_40px_rgba(0,0,0,0.4)]",
         state === "streaming" &&
-          "border-warning/40 shadow-[0_0_0_4px_hsl(var(--warning)/0.08)]",
+          "border-warning/50 shadow-[0_0_30px_hsl(var(--warning)/0.15)]",
         state === "done" && "border-success/30",
         state === "error" && "border-destructive/40",
-        state === "pending" && "opacity-70"
+        state === "pending" && "opacity-50"
       )}
       aria-label={`${title} stage, ${STATE_LABEL[state]}`}
     >
@@ -90,7 +91,7 @@ export function GeminiStageCard({
 
       <div
         className={cn(
-          "relative rounded-md border border-border bg-background/60"
+          "relative rounded-lg border border-white/10 bg-black/40 backdrop-blur-md"
         )}
       >
         <ul

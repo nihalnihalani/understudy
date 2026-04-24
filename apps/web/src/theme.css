@@ -10,9 +10,9 @@
 :root,
 [data-theme="dark"] {
   /* surface */
-  --background: 0 0% 4%;             /* #0A0A0A */
-  --surface: 0 0% 7%;                /* #121212 */
-  --elevated: 0 0% 11%;              /* #1C1C1C */
+  --background: 0 0% 0%;             /* #000000 */
+  --surface: 0 0% 3%;                /* #080808 */
+  --elevated: 0 0% 6%;               /* #0F0F0F */
 
   /* text */
   --foreground: 0 0% 98%;            /* #FAFAFA */
@@ -21,8 +21,8 @@
   --faint: 0 0% 45%;                 /* #737373 */
 
   /* chrome */
-  --border: 0 0% 15%;                /* #262626 */
-  --border-strong: 0 0% 20%;         /* #333333 */
+  --border: 0 0% 10%;                /* Sleek Border */
+  --border-strong: 0 0% 15%;         /* Slightly stronger */
   --input: 0 0% 15%;
   --ring: 0 0% 80%;                  /* primary focus ring */
 
@@ -54,9 +54,9 @@
   --chart-5: 0 84% 60%;     /* Red */
 
   /* card */
-  --card: 0 0% 6%;
+  --card: 0 0% 2%;
   --card-foreground: 0 0% 98%;
-  --popover: 0 0% 6%;
+  --popover: 0 0% 2%;
   --popover-foreground: 0 0% 98%;
 
   /* radius */

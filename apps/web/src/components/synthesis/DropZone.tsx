@@ -68,12 +68,12 @@ export function DropZone({
       onDragLeave={() => setDragOver(false)}
       onDrop={onDrop}
       className={cn(
-        "relative flex cursor-pointer flex-col items-center justify-center gap-5 rounded-xl border-2 border-dashed border-border-strong bg-surface p-14 text-center",
-        "transition-colors duration-fast",
-        "hover:border-primary/60 hover:bg-elevated/40",
+        "relative flex cursor-pointer flex-col items-center justify-center gap-5 rounded-2xl border border-white/10 bg-white/5 p-14 text-center backdrop-blur-xl",
+        "transition-all duration-500 ease-out",
+        "hover:border-white/20 hover:bg-white/10 hover:shadow-[0_0_40px_hsl(var(--primary)/0.15)]",
         "focus-within:border-primary focus-within:ring-2 focus-within:ring-ring",
         dragOver &&
-          "border-primary bg-primary/5 ring-4 ring-primary/30 shadow-[0_0_20px_hsl(var(--primary)/0.15)] scale-[1.01]"
+          "border-primary bg-primary/10 ring-4 ring-primary/30 shadow-[0_0_50px_hsl(var(--primary)/0.25)] scale-[1.02]"
       )}
       aria-label="Drop a video recording to upload"
     >
@@ -88,9 +88,9 @@ export function DropZone({
 
       <div
         className={cn(
-          "flex h-16 w-16 items-center justify-center rounded-full border border-border-strong bg-elevated text-muted-foreground",
-          "transition-all duration-base",
-          dragOver && "scale-110 border-primary bg-primary/20 text-primary shadow-[0_0_15px_hsl(var(--primary)/0.2)] animate-pulse"
+          "flex h-16 w-16 items-center justify-center rounded-full border border-white/10 bg-white/5 text-muted-foreground shadow-sm backdrop-blur-md",
+          "transition-all duration-500 ease-out",
+          dragOver && "scale-110 border-primary/50 bg-primary/20 text-primary shadow-[0_0_30px_hsl(var(--primary)/0.3)] animate-pulse"
         )}
         aria-hidden
       >

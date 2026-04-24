@@ -9,6 +9,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "react-router-dom";
+import { motion } from "framer-motion";
 import { Copy, Download } from "lucide-react";
 import { PageHeader } from "@/layouts/AppShell";
 import { Button } from "@/components/ui/button";
@@ -100,15 +101,26 @@ export default function SupplyChain() {
         }
       />
 
-      <HeroVerdict
-        verified={verified}
-        imageRef={imageRef}
-        digest={truncateDigest(image.digest, 12, 8)}
-        signedAt={bundle.rekor_integrated_time}
-        builderRef={truncateDigest(slsa.builder_id, 30, 6)}
-      />
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+      >
+        <HeroVerdict
+          verified={verified}
+          imageRef={imageRef}
+          digest={truncateDigest(image.digest, 12, 8)}
+          signedAt={bundle.rekor_integrated_time}
+          builderRef={truncateDigest(slsa.builder_id, 30, 6)}
+        />
+      </motion.div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <motion.div 
+        className="grid gap-4 lg:grid-cols-2"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, delay: 0.1 }}
+      >
         <CosignReceipt
           signatureDigest={agent.cosign_sig}
           certificateIdentity={bundle.certificate_identity}
@@ -138,11 +150,14 @@ export default function SupplyChain() {
           fixture={fixture}
         />
         <SbomReceipt sbom={sbom} fixture={fixture} />
-      </div>
+      </motion.div>
 
-      <section
+      <motion.section
         aria-label="Supply chain sponsors"
-        className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-surface/60 px-4 py-3"
+      className="flex flex-wrap items-center gap-3 rounded-xl border border-white/10 bg-white/5 backdrop-blur-2xl shadow-[0_8px_40px_rgba(0,0,0,0.4)] px-4 py-3"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, delay: 0.2 }}
       >
         <span className="font-mono text-[10px] uppercase tracking-wider text-faint">
           powered by
@@ -156,15 +171,20 @@ export default function SupplyChain() {
           <span className="text-faint">·</span>
           <span>syft@0.108</span>
         </div>
-      </section>
+      </motion.section>
 
-      <footer className="text-center font-mono text-[11px] text-faint">
+      <motion.footer 
+        className="text-center font-mono text-[11px] text-faint"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.4, delay: 0.3 }}
+      >
         {fixture
           ? "source · fixtures (GET /agents/{id}/attestation unavailable — demo fixture)"
           : "source · GET /agents/{id}/attestation — every field authoritative"}
         {" · "}
         cosign verify runs live on stage against the CI-signed image
-      </footer>
+      </motion.footer>
     </div>
   );
 }

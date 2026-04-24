@@ -9,6 +9,7 @@
 
 import { useMemo } from "react";
 import { Link, useParams } from "react-router-dom";
+import { motion } from "framer-motion";
 import { ArrowRight, Copy, RefreshCw } from "lucide-react";
 import { PageHeader } from "@/layouts/AppShell";
 import { TrafficValidatorBanner } from "@/components/synthesis/TrafficValidatorBanner";
@@ -104,17 +105,28 @@ export default function DreamQuery() {
         }
       />
 
-      <TrafficValidatorBanner
-        breakingChanges={report?.breaking_changes ?? 0}
-        clientOpsSampled={report?.client_ops_sampled ?? 4212}
-        windowDays={report?.window_days ?? 7}
-        hash={report?.hash}
-        isFixture
-      />
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+      >
+        <TrafficValidatorBanner
+          breakingChanges={report?.breaking_changes ?? 0}
+          clientOpsSampled={report?.client_ops_sampled ?? 4212}
+          windowDays={report?.window_days ?? 7}
+          hash={report?.hash}
+          isFixture
+        />
+      </motion.div>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="min-w-0 space-y-4">
-          <Card>
+        <motion.div 
+          className="min-w-0 space-y-4"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.1 }}
+        >
+          <Card className="rounded-xl border border-white/10 bg-white/5 backdrop-blur-2xl shadow-[0_8px_40px_rgba(0,0,0,0.4)]">
             <CardContent className="space-y-3 p-4">
               <header className="flex flex-wrap items-center justify-between gap-2">
                 <div>
@@ -128,7 +140,7 @@ export default function DreamQuery() {
                 </div>
                 <Badge variant="primary">{report?.proposal_id ?? "—"}</Badge>
               </header>
-              <pre className="overflow-auto rounded-md border border-border bg-background/60 p-3 font-mono text-[11px] leading-[1.6] text-foreground">
+              <pre className="overflow-auto rounded-lg border border-white/10 bg-black/40 backdrop-blur-xl p-3 font-mono text-[11px] leading-[1.6] text-foreground shadow-inner">
 {dq.desired_operation}
               </pre>
             </CardContent>
@@ -141,9 +153,15 @@ export default function DreamQuery() {
           />
 
           <ResolverStubs subgraphId={dq.subgraph_id} />
-        </div>
+        </motion.div>
 
-        <aside className="space-y-4" aria-label="Supergraph composition">
+        <motion.aside 
+          className="space-y-4" 
+          aria-label="Supergraph composition"
+          initial={{ opacity: 0, x: 10 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.3, delay: 0.2 }}
+        >
           <SupergraphMiniMap
             studioUrl={STUDIO_URL}
             subgraphs={[
@@ -155,7 +173,7 @@ export default function DreamQuery() {
             ]}
           />
 
-          <Card>
+          <Card className="rounded-xl border border-white/10 bg-white/5 backdrop-blur-2xl shadow-[0_8px_40px_rgba(0,0,0,0.4)]">
             <CardContent className="space-y-3 p-4">
               <h3 className="text-[14px] font-semibold text-foreground">
                 Why this matters
@@ -181,12 +199,12 @@ export default function DreamQuery() {
           </Card>
 
           <Link to="/agents" className="w-full">
-            <Button variant="secondary" size="lg" className="w-full">
+            <Button variant="secondary" size="lg" className="w-full group">
               Continue to Agent Wall
-              <ArrowRight className="size-4" />
+              <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
             </Button>
           </Link>
-        </aside>
+        </motion.aside>
       </div>
     </div>
   );
@@ -202,7 +220,7 @@ function ResolverStubs({ subgraphId }: { subgraphId: string }) {
     },
   ];
   return (
-    <Card>
+    <Card className="rounded-xl border border-white/10 bg-white/5 backdrop-blur-2xl shadow-[0_8px_40px_rgba(0,0,0,0.4)]">
       <CardContent className="space-y-3 p-4">
         <header className="flex items-center justify-between">
           <h2 className="text-[14px] font-semibold text-foreground">
@@ -213,7 +231,7 @@ function ResolverStubs({ subgraphId }: { subgraphId: string }) {
         {stubs.map((s) => (
           <div
             key={s.type}
-            className="rounded-md border border-border bg-elevated/40 p-3"
+            className="rounded-xl border border-white/10 bg-black/40 backdrop-blur-xl p-3 shadow-inner"
           >
             <dl className="space-y-1.5 font-mono text-[11px]">
               <DlRow k="type.field" v={s.type} tone="accent" />
