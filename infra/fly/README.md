@@ -1,13 +1,14 @@
-# infra/fly — Fly.io + Mac Mini deployment
+# infra/fly — Fly.io deployment
 
-Two runtime surfaces for Understudy (architecture.md §12):
+Runtime surface for Understudy (architecture.md §12):
 
 | Surface | Hosts | File |
 |---|---|---|
-| **Fly Machines** (iad + sjc, performance-2x) | synthesis API + generated agent cores | `fly.toml`, `agent.fly.toml.tmpl` |
-| **Mac Mini** (local, TinyFish browser pool) | headful Chromium via TinyFish CLI | `macmini.plist`, `macmini-start.sh` |
+| **Fly.io Machines** (iad + sjc, performance-2x) | synthesis API + generated agent cores (each with cosign preboot verify) | `fly.toml`, `agent.fly.toml.tmpl`, `fly-start.sh` |
 
-**Both verify SLSA L2 + cosign before starting.** Verification failure = refuse to run. This is the key supply-chain guarantee the pitch depends on at 1:40-2:00.
+Generated agents shell out to **TinyFish's hosted browser cloud** for actual browser sessions — Understudy does not operate its own browser pool.
+
+**Every boot verifies SLSA L2 + cosign before the agent runs.** Verification failure = refuse to start. This is the key supply-chain guarantee the pitch depends on at 1:40-2:00.
 
 ## Fly Machines
 
@@ -37,19 +38,11 @@ flyctl deploy --config infra/fly/fly.toml
 flyctl deploy --config /tmp/agent-${AGENT_ID}.fly.toml --app understudy-agent-${AGENT_ID}
 ```
 
-## Mac Mini
+## TinyFish browser runtime
 
-`macmini.plist` is a LaunchDaemon (`com.understudy.tinyfish`). Install:
+Generated agents invoke TinyFish's hosted browser via the CLI (`tinyfish run ...`) — we do not run a browser pool ourselves. The TinyFish side is an opaque managed service; our responsibility ends at "the Fly.io Machine that hosts the agent core verified cosign before booting, and that agent calls `tinyfish run` with a pinned Skill version."
 
-```bash
-sudo mkdir -p /var/log/understudy
-sudo cp infra/fly/macmini-start.sh /usr/local/bin/macmini-start.sh
-sudo chmod +x /usr/local/bin/macmini-start.sh
-sudo cp infra/fly/macmini.plist /Library/LaunchDaemons/com.understudy.tinyfish.plist
-sudo launchctl bootstrap system /Library/LaunchDaemons/com.understudy.tinyfish.plist
-```
-
-`macmini-start.sh` runs the same two cosign commands as Fly, then `exec tinyfish serve`. `KeepAlive=true` respawns on crash; `ThrottleInterval=30` prevents hot-loops. A verify failure hot-loops on purpose — better than silently starting an unverified image.
+The `TINYFISH_API_KEY` env var is passed via `fly secrets` and rotated per the standard Fly secrets workflow.
 
 ## The two cosign commands (same every time)
 
@@ -65,6 +58,6 @@ cosign verify-attestation --type slsaprovenance \
   "$IMAGE_REF"
 ```
 
-Identical on Fly, Mac Mini, and `scripts/verify_release.sh` (stage demo). One identity string everywhere.
+Identical on Fly.io and `scripts/verify_release.sh` (stage demo). One identity string everywhere.
 
-Owner task: **#9 — Build Fly + Mac Mini deployment infra**.
+Owner task: **#9 — Build Fly.io deployment infra**.

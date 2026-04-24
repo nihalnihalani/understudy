@@ -1,6 +1,8 @@
-# infra/chainguard — Supply chain (SLSA L2, cosign, Fulcio, Rekor)
+# infra/chainguard — Supply chain (SLSA L2, cosign, Fulcio, Rekor, Libraries)
 
-Every Understudy image is built on Chainguard `wolfi-base`, carries an **SLSA Build Level 2** provenance predicate, a **build-time SBOM** (emitted in-process by BuildKit/Syft, not a post-build scan), and a **keyless cosign signature** anchored in the Rekor transparency log (architecture.md §6, §12).
+Every Understudy image is built on Chainguard `wolfi-base`, has its Python dependencies resolved through **Chainguard Libraries** (malware-resistant rebuilt-from-source PyPI mirror), carries an **SLSA Build Level 2** provenance predicate, a **build-time SBOM** (emitted in-process by BuildKit/Syft, not a post-build scan), and a **keyless cosign signature** anchored in the Rekor transparency log (architecture.md §6, §12).
+
+The Dockerfile accepts `--build-arg PIP_INDEX_URL=...` so local builds default to public PyPI (no auth required) and CI/prod builds use Chainguard Libraries with a pull token stored in GitHub Actions secrets. See [`docs/chainguard-libraries.md`](../../docs/chainguard-libraries.md) for the 3-minute setup and `scripts/setup_chainguard_libraries.sh` for the automated walkthrough.
 
 ## Files
 
@@ -33,11 +35,10 @@ See `Dockerfile.wolfi` for the full apk list.
 
 ## Verification on boot (non-negotiable)
 
-Both runtime surfaces verify before launch:
-- **Fly Machines** — `[processes]` init script runs `cosign verify`; non-zero exit marks the deploy unhealthy (infra/fly/fly.toml).
-- **Mac Mini / launchd** — `macmini-start.sh` runs the same verify before launching TinyFish (infra/fly/macmini-start.sh).
+Runtime verification before launch:
+- **Fly.io Machines** — `[processes]` init script runs `cosign verify`; non-zero exit marks the deploy unhealthy (infra/fly/fly.toml).
 
-The agent image's own ENTRYPOINT (`agent/verify-self.sh`) re-runs the verify against its own digest as belt-and-braces.
+The agent image's own ENTRYPOINT (`agent/verify-self.sh`) re-runs the verify against its own digest as belt-and-braces. Browser sessions are driven via the **TinyFish hosted cloud** — Understudy does not operate its own browser pool, so there is no second launchd-style surface to verify.
 
 ## Local dev vs prod signing
 

@@ -6,7 +6,7 @@ tools: Read, Grep, Glob, Bash
 
 You are a supply-chain auditor for the Understudy hackathon project. The CLAUDE.md hard invariant is:
 
-> Every generated agent image must carry an SLSA L2 provenance predicate, a build-time SBOM, and a keyless cosign signature via Fulcio anchored in Rekor. Verification runs on boot via Fly pre-start hooks and Mac Mini launchd wrappers.
+> Every generated agent image must carry an SLSA L2 provenance predicate, a build-time SBOM, and a keyless cosign signature via Fulcio anchored in Rekor. Verification runs on boot via Fly.io Machines pre-start hooks. Browser sessions are delegated to TinyFish's hosted cloud — Understudy does not operate its own browser pool.
 
 ## What to check
 

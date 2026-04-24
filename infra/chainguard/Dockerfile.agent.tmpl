@@ -52,6 +52,6 @@ ENV AGENT_ID={{AGENT_ID}} \
 EXPOSE 8080
 
 # verify-self.sh must exit 0 before the agent core loop starts. On non-zero, the
-# container terminates and Fly / launchd marks the deploy unhealthy.
+# container terminates and Fly.io marks the deploy unhealthy.
 ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/verify-self.sh"]
 CMD ["python", "-m", "apps.agent_template.main"]

@@ -24,8 +24,9 @@ The on-stage script for the 3-minute pitch. Beat-by-beat timing lives in archite
 ## On-stage cues
 
 See architecture.md §15 for the minute-by-minute table. Kill-switch:
-`scripts/demo_mode_switch.sh replay` flips DEMO_MODE on Fly.io, the Mac Mini
-launchd daemon, and the local Docker Compose stack in one command.
+`scripts/demo_mode_switch.sh replay` flips DEMO_MODE on Fly.io and the local
+Docker Compose stack in one command. Browser sessions run on TinyFish's
+hosted cloud; no second runtime surface needs flipping.
 
 ## Owner task
 

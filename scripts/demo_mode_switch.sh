@@ -5,11 +5,13 @@
 #
 # Surfaces updated:
 #   1. Fly.io apps (understudy-synthesis, understudy-router when present)
-#   2. Mac Mini launchd-started tinyfish (com.understudy.tinyfish)
-#   3. Local Docker Compose stack (for local demo)
+#   2. Local Docker Compose stack (for local demo)
 #
 # Any surface that is unreachable logs a yellow WARN and continues — we'd rather
 # flip the surfaces that ARE up than abort the switch on stage.
+#
+# Browser sessions run on TinyFish's hosted cloud; DEMO_MODE is not a concept
+# there, and we never operated a Mac Mini / launchd surface.
 #
 # Set DRY_RUN=1 to print the commands without executing them.
 
@@ -31,8 +33,8 @@ usage() {
   cat <<EOF
 Usage: $(basename "$0") {live|replay|hybrid}
 
-Flips DEMO_MODE across every running surface — Fly.io apps, Mac Mini launchd,
-and local Docker Compose. See architecture.md §14 for the mode semantics.
+Flips DEMO_MODE across every running surface — Fly.io apps and local Docker
+Compose. See architecture.md §14 for the mode semantics.
 
 Modes:
   live     — every Gemini / Cosmo call hits the network (default; slow, realistic)
@@ -46,7 +48,6 @@ Env:
   FLY_ROUTER_APP            — override router Fly app name (default: understudy-router)
   COMPOSE_FILE              — override docker-compose file (default: docker-compose.yml)
   SKIP_FLY=1                — skip the Fly.io hop
-  SKIP_MACMINI=1            — skip the Mac Mini launchctl hop
   SKIP_COMPOSE=1            — skip the Docker Compose hop
 EOF
 }
@@ -94,29 +95,7 @@ else
   info "SKIP_FLY=1 — skipping Fly.io hop"
 fi
 
-# --- 2. Mac Mini launchd-started tinyfish ------------------------------------
-if [[ "${SKIP_MACMINI:-0}" != "1" ]]; then
-  if command -v launchctl >/dev/null 2>&1; then
-    info "Mac Mini: launchctl setenv DEMO_MODE=${mode}"
-    if run "launchctl setenv DEMO_MODE ${mode}"; then
-      ok "launchctl env updated"
-    else
-      warn "launchctl setenv failed (not root?) — continuing"
-    fi
-    info "Mac Mini: kickstarting com.understudy.tinyfish to pick up new env"
-    if run "launchctl kickstart -k system/com.understudy.tinyfish"; then
-      ok "tinyfish daemon restarted"
-    else
-      warn "launchctl kickstart failed (daemon not loaded or not root) — continuing"
-    fi
-  else
-    warn "launchctl not on PATH — skipping Mac Mini hop"
-  fi
-else
-  info "SKIP_MACMINI=1 — skipping Mac Mini hop"
-fi
-
-# --- 3. Docker Compose (local demo) ------------------------------------------
+# --- 2. Docker Compose (local demo) ------------------------------------------
 if [[ "${SKIP_COMPOSE:-0}" != "1" ]]; then
   if command -v docker >/dev/null 2>&1 && [[ -f "$COMPOSE_FILE" ]]; then
     info "Docker Compose: bouncing stack with DEMO_MODE=${mode} (file=${COMPOSE_FILE})"

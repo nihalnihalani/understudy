@@ -29,3 +29,8 @@ cosign.*.key
 *.cosign.key
 sbom.spdx.json
 rekor-entry.json
+
+# Chainguard Libraries — pip.conf contains a pull-token secret. Template stays,
+# real file is local-only. See docs/chainguard-libraries.md.
+pip.conf
+!pip.conf.example
