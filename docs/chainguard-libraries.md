@@ -1,4 +1,11 @@
-# Chainguard Libraries — Python setup
+# Chainguard Libraries — Python + JavaScript setup
+
+> **One-shot bootstrap:** `scripts/chainguard_init.sh` does everything below
+> (both ecosystems) after you've created a Chainguard account + org in the
+> browser. Run that if you want the 30-second path. The sections below are
+> reference for what it does + how to do it manually.
+
+## Python setup
 
 Understudy already uses **Chainguard Containers** (`cgr.dev/chainguard/wolfi-base` in [`infra/chainguard/Dockerfile.wolfi`](../infra/chainguard/Dockerfile.wolfi)). This document covers adding **Chainguard Libraries** — malware-resistant, rebuilt-from-source Python packages served from `libraries.cgr.dev/python/simple`.
 
@@ -136,6 +143,92 @@ docker run --rm understudy-agent-base:cg-libs pip config list
 # Spot-check a dependency provenance
 docker run --rm understudy-agent-base:cg-libs pip show fastapi | head -5
 ```
+
+---
+
+## JavaScript setup
+
+Covers `apps/web/` (Vite dev build) and `apps/agent-template/` (generated agent
+runtime). Both have committed `.npmrc.example` templates; the real `.npmrc`
+files are `.gitignored`.
+
+### Enable the ecosystem + mint the token
+
+```bash
+chainctl libraries entitlements create --ecosystems=JAVASCRIPT   # idempotent
+chainctl auth pull-token --repository=javascript --ttl=720h
+```
+
+Save the Username + Password. Compute the `_auth` value:
+
+```bash
+echo -n 'USERNAME:PASSWORD' | base64
+```
+
+### Local dev — `.npmrc`
+
+```bash
+cp .npmrc.example .npmrc
+# Edit: replace {BASE64_OF_USERNAME_PASSWORD} with the base64 value above.
+# NOTE: understudy/ is an npm-workspaces monorepo — the .npmrc MUST live at
+# repo root. Per-workspace .npmrc files are silently ignored by npm.
+```
+
+Then `npm install` in either directory pulls from Chainguard's mirror.
+
+Quick check:
+
+```bash
+npm view react dist.tarball
+# → https://libraries.cgr.dev/javascript/react/-/react-18.x.x.tgz
+```
+
+### Generated agents — `--build-arg`
+
+[`infra/chainguard/Dockerfile.agent.tmpl`](../infra/chainguard/Dockerfile.agent.tmpl)
+accepts an `NPM_CHAINGUARD_AUTH` build arg. When set, both the `@tinyfish/cli`
+global install and pinned-skill installs pull from `libraries.cgr.dev/javascript/`.
+When unset, generated agents fall back to the public npm registry (so local
+development without a Chainguard account still works).
+
+```bash
+AUTH=$(echo -n "${JS_USERNAME}:${JS_PASSWORD}" | base64)
+docker build \
+  --build-arg BASE_DIGEST="${BASE_DIGEST}" \
+  --build-arg NPM_CHAINGUARD_AUTH="${AUTH}" \
+  -f infra/chainguard/Dockerfile.agent.tmpl \
+  -t understudy-agent:cg-libs apps/agent-template/
+```
+
+### CI — GitHub Actions
+
+Add two more secrets and feed the base64 auth into the build:
+
+- `CHAINGUARD_JAVASCRIPT_USERNAME`
+- `CHAINGUARD_JAVASCRIPT_PASSWORD`
+
+```yaml
+      - name: Build agent image (Chainguard npm mirror)
+        env:
+          JS_USER: ${{ secrets.CHAINGUARD_JAVASCRIPT_USERNAME }}
+          JS_PASS: ${{ secrets.CHAINGUARD_JAVASCRIPT_PASSWORD }}
+        run: |
+          AUTH=$(printf '%s:%s' "$JS_USER" "$JS_PASS" | base64 | tr -d '\n')
+          docker build \
+            --build-arg NPM_CHAINGUARD_AUTH="$AUTH" \
+            -f infra/chainguard/Dockerfile.agent.tmpl \
+            apps/agent-template/
+```
+
+### Token rotation (JS)
+
+Same 30-day TTL. Re-run `chainctl auth pull-token --repository=javascript` and
+update:
+- local `apps/*/.npmrc` files
+- `CHAINGUARD_JAVASCRIPT_*` GitHub Actions secrets
+
+Or just run `scripts/chainguard_init.sh` again — it rotates both ecosystems
+atomically.
 
 ---
 
