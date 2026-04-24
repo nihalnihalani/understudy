@@ -33,14 +33,59 @@ import {
 import { api } from "@/api/client";
 import { DEMO_AGENTS, DEMO_AGENT_EXTRAS } from "@/fixtures/demo";
 import type { Agent } from "@/api/types";
+import {
+  isInsforgeConfigured,
+  selectRows,
+  type Agent as InsforgeAgent,
+} from "@/lib/insforge";
 import { cn } from "@/lib/utils";
+
+// Dual-source loader: prefer direct PostgREST (proves RLS works + skips the
+// FastAPI hop), fall back to FastAPI, fall back to fixtures via the empty-
+// array path in `agents = data ?? DEMO_AGENTS` below. We log which source
+// served the request so it shows up in browser devtools during the demo.
+async function fetchAgents(): Promise<Agent[]> {
+  if (isInsforgeConfigured()) {
+    try {
+      const rows = await selectRows<InsforgeAgent>("agent");
+      if (rows.length > 0) {
+        // Defensive shape check — if PostgREST returns rows that don't match
+        // the Agent contract, fall through to the FastAPI client rather than
+        // crash the UI further down.
+        const valid = rows.every(
+          (r) =>
+            typeof r?.id === "string" &&
+            typeof r?.image_digest === "string" &&
+            typeof r?.cosign_sig === "string" &&
+            typeof r?.graphql_endpoint === "string" &&
+            typeof r?.ams_namespace === "string"
+        );
+        if (valid) {
+          console.info("[AgentWall] source=insforge rows=%d", rows.length);
+          return rows as Agent[];
+        }
+        console.warn(
+          "[AgentWall] insforge rows had unexpected shape; falling back to FastAPI"
+        );
+      } else {
+        console.info("[AgentWall] source=insforge rows=0; falling back to FastAPI");
+      }
+    } catch (err) {
+      console.warn("[AgentWall] insforge fetch failed; falling back to FastAPI", err);
+    }
+  }
+
+  const apiRows = await api.listAgents();
+  console.info("[AgentWall] source=fastapi rows=%d", apiRows.length);
+  return apiRows;
+}
 
 type FilterKey = "all" | "signed" | "unsigned" | "active" | "idle";
 
 export default function AgentWall() {
   const { data, isLoading } = useQuery({
     queryKey: ["agents"],
-    queryFn: api.listAgents,
+    queryFn: fetchAgents,
     retry: false,
   });
 

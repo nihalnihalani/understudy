@@ -253,3 +253,117 @@ jobs:
         run: |
           chmod +x scripts/verify_release.sh
           scripts/verify_release.sh "${IMAGE_WITH_DIGEST}"
+
+      - name: Publish attestation metadata to InsForge
+        # Persist the supply-chain receipt (image / SLSA / SBOM) into the
+        # InsForge tables landed in 3e8d159 so the frontend renders attestation
+        # data CI actually produced (architecture.md §6). This is a secondary
+        # persistence path — failures emit ::warning:: but never break CI, since
+        # the cosign + Rekor proof above is the canonical record.
+        env:
+          INSFORGE_URL: ${{ secrets.INSFORGE_URL }}
+          INSFORGE_API_KEY: ${{ secrets.INSFORGE_API_KEY }}
+          IMAGE_DIGEST: ${{ needs.build-sign-push.outputs.digest }}
+          REGISTRY: ${{ env.REGISTRY }}
+        run: |
+          set -uo pipefail
+          if [[ -z "${INSFORGE_URL:-}" || -z "${INSFORGE_API_KEY:-}" ]]; then
+            echo "::warning::INSFORGE_URL or INSFORGE_API_KEY not set — skipping attestation persistence. Set both as repo secrets to enable."
+            exit 0
+          fi
+
+          BUILT_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          PREDICATE="$(ls slsa-provenance/*.intoto.jsonl 2>/dev/null | head -n1 || true)"
+
+          insforge_post() {
+            local table="$1"
+            local body="$2"
+            local code
+            code=$(curl -sS -o /tmp/insforge_resp.json -w '%{http_code}' \
+              -X POST "${INSFORGE_URL%/}/api/database/records/${table}" \
+              -H "Authorization: Bearer ${INSFORGE_API_KEY}" \
+              -H "Content-Type: application/json" \
+              --data "${body}" || echo "000")
+            echo "${code}"
+          }
+
+          # 1. image — FK target for the other two rows. 409 = duplicate digest, idempotent.
+          image_body=$(jq -cn \
+            --arg digest "${IMAGE_DIGEST}" \
+            --arg registry "${REGISTRY}" \
+            --arg built_at "${BUILT_AT}" \
+            '[{digest:$digest, registry:$registry, built_at:$built_at}]')
+          image_code=$(insforge_post "image" "${image_body}")
+          if [[ "${image_code}" =~ ^2 ]] || [[ "${image_code}" == "409" ]]; then
+            echo "image row OK (HTTP ${image_code})"
+          else
+            echo "::warning::InsForge image insert failed (HTTP ${image_code}): $(cat /tmp/insforge_resp.json 2>/dev/null || true)"
+            exit 0
+          fi
+
+          # 2. slsa_attestation — extract in-toto materials from the SLSA generator predicate.
+          if [[ -n "${PREDICATE}" && -f "${PREDICATE}" ]]; then
+            # .intoto.jsonl is one DSSE envelope per line; payload is base64 in-toto statement.
+            materials_json=$(jq -sR '
+              split("\n") | map(select(length>0)) | .[0]
+              | fromjson
+              | .payload
+              | @base64d
+              | fromjson
+              | (.predicate.materials // .predicate.buildDefinition.resolvedDependencies // [])
+            ' "${PREDICATE}" 2>/dev/null || echo '[]')
+            builder_id=$(jq -sR '
+              split("\n") | map(select(length>0)) | .[0]
+              | fromjson
+              | .payload
+              | @base64d
+              | fromjson
+              | (.predicate.builder.id // .predicate.runDetails.builder.id // "unknown")
+            ' "${PREDICATE}" 2>/dev/null || echo '"unknown"')
+            predicate_type=$(jq -sR '
+              split("\n") | map(select(length>0)) | .[0]
+              | fromjson
+              | .payload
+              | @base64d
+              | fromjson
+              | (.predicateType // "https://slsa.dev/provenance/v1")
+            ' "${PREDICATE}" 2>/dev/null || echo '"https://slsa.dev/provenance/v1"')
+          else
+            echo "::warning::SLSA predicate not found at slsa-provenance/*.intoto.jsonl — using empty materials."
+            materials_json='[]'
+            builder_id='"unknown"'
+            predicate_type='"https://slsa.dev/provenance/v1"'
+          fi
+
+          slsa_body=$(jq -cn \
+            --arg digest "${IMAGE_DIGEST}" \
+            --argjson predicate_type "${predicate_type}" \
+            --argjson builder_id "${builder_id}" \
+            --argjson materials "${materials_json}" \
+            '[{image_digest:$digest, predicate_type:$predicate_type, builder_id:$builder_id, materials:$materials}]')
+          slsa_code=$(insforge_post "slsa_attestation" "${slsa_body}")
+          if [[ "${slsa_code}" =~ ^2 ]]; then
+            echo "slsa_attestation row OK (HTTP ${slsa_code})"
+          else
+            echo "::warning::InsForge slsa_attestation insert failed (HTTP ${slsa_code}): $(cat /tmp/insforge_resp.json 2>/dev/null || true)"
+          fi
+
+          # 3. sbom — components array from the spdx-json document.
+          if [[ -f sbom.spdx.json ]]; then
+            components_json=$(jq -c '.packages // []' sbom.spdx.json)
+          else
+            echo "::warning::sbom.spdx.json not present — using empty components."
+            components_json='[]'
+          fi
+          sbom_body=$(jq -cn \
+            --arg digest "${IMAGE_DIGEST}" \
+            --arg format "spdx-json" \
+            --arg gen_time "${BUILT_AT}" \
+            --argjson components "${components_json}" \
+            '[{image_digest:$digest, format:$format, generation_time:$gen_time, components:$components}]')
+          sbom_code=$(insforge_post "sbom" "${sbom_body}")
+          if [[ "${sbom_code}" =~ ^2 ]]; then
+            echo "sbom row OK (HTTP ${sbom_code})"
+          else
+            echo "::warning::InsForge sbom insert failed (HTTP ${sbom_code}): $(cat /tmp/insforge_resp.json 2>/dev/null || true)"
+          fi
