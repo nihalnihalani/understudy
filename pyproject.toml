@@ -13,6 +13,7 @@ authors = [{ name = "Understudy Team" }]
 dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.32",
+    "python-multipart>=0.0.9",
     "pydantic>=2.9",
     "google-genai>=1.0",
     "redis>=5.2",
