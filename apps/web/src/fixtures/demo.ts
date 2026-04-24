@@ -12,7 +12,7 @@ import type {
   SlsaAttestation,
   SynthesisRunDetail,
 } from "@/api/types";
-import type { AgentCardExtras } from "@/components/AgentCard";
+import type { AgentCardExtras } from "@/components/agents/AgentCard";
 
 export const DEMO_SYNTH_ID = "7f3c29de-9a44-4b02-bb0d-2cf61a3d1e74";
 

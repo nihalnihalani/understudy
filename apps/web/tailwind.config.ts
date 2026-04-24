@@ -1,103 +1,188 @@
 import type { Config } from "tailwindcss";
 
-// Tokens mirror TRUE's "CBC // Command — Mission Telemetry" theme.
-// Amber is the signature accent; Fraunces (display, italic) marks emphasis.
+/**
+ * Tokens are declared in apps/web/src/theme.css as HSL triplets on :root
+ * and [data-theme="light"]. This config wires Tailwind's colour utilities
+ * to those CSS variables so `bg-primary/20`, `text-muted`, etc. compose
+ * with Tailwind's alpha modifier.
+ *
+ * Legacy palette keys (canvas, fg, border.subtle, accent.*) are preserved
+ * so the existing pages in apps/web/src/pages/* keep compiling while
+ * tasks #20 and #21 rebuild them.
+ */
 const config: Config = {
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
-  darkMode: "class",
+  darkMode: ["class", '[data-theme="dark"]'],
   theme: {
+    container: {
+      center: true,
+      padding: "1.5rem",
+      screens: {
+        sm: "640px",
+        md: "768px",
+        lg: "1024px",
+        xl: "1280px",
+        "2xl": "1400px",
+      },
+    },
     extend: {
       colors: {
-        canvas: {
-          DEFAULT: "#070810",   // --bg
-          surface: "#10131c",   // --surface
-          elevated: "#151826",  // --surface-2
-          panel: "#12151f",     // --panel
+        // semantic shadcn-style tokens
+        background: "hsl(var(--background))",
+        surface: "hsl(var(--surface))",
+        elevated: "hsl(var(--elevated))",
+        foreground: "hsl(var(--foreground))",
+        muted: {
+          DEFAULT: "hsl(var(--muted))",
+          foreground: "hsl(var(--muted-foreground))",
         },
+        faint: "hsl(var(--faint))",
         border: {
-          subtle: "rgba(255,255,255,0.06)",  // --hairline
-          strong: "rgba(255,255,255,0.14)",  // --hairline-strong
+          DEFAULT: "hsl(var(--border))",
+          subtle: "hsl(var(--border))",
+          strong: "hsl(var(--border-strong))",
         },
-        fg: {
-          DEFAULT: "#e8ecf1",   // --text
-          muted: "#9aa3b2",     // --text-dim
-          faint: "#6b7282",     // --muted
-          dim: "#4a5163",       // --dim
-        },
+        input: "hsl(var(--input))",
+        ring: "hsl(var(--ring))",
         primary: {
-          DEFAULT: "#ff9d2a",   // amber — TRUE's signature accent
-          700: "#e2861d",
-          300: "#ffb85e",
-          soft: "rgba(255, 157, 42, 0.12)",
+          DEFAULT: "hsl(var(--primary))",
+          foreground: "hsl(var(--primary-foreground))",
+          700: "hsl(var(--primary-strong))",
+          300: "hsl(var(--primary-soft))",
+        },
+        secondary: {
+          DEFAULT: "hsl(var(--secondary))",
+          foreground: "hsl(var(--secondary-foreground))",
+        },
+        destructive: {
+          DEFAULT: "hsl(var(--destructive))",
+          foreground: "hsl(var(--destructive-foreground))",
+        },
+        success: {
+          DEFAULT: "hsl(var(--success))",
+          foreground: "hsl(var(--success-foreground))",
+        },
+        warning: {
+          DEFAULT: "hsl(var(--warning))",
+          foreground: "hsl(var(--warning-foreground))",
         },
         accent: {
-          amber: "#ff9d2a",
-          signal: "#5aa8ff",
-          cyan: "#5aa8ff",
-          emerald: "#57d28e",
-          ok: "#57d28e",
-          warn: "#ffb547",
-          bad: "#ff5c67",
-          crimson: "#ff5c67",
-          violet: "#b28bff",
+          DEFAULT: "hsl(var(--accent))",
+          foreground: "hsl(var(--accent-foreground))",
+          // legacy — named accents still referenced by existing pages
+          cyan: "hsl(var(--accent))",
+          emerald: "hsl(var(--success))",
+          amber: "hsl(var(--warning))",
+          crimson: "hsl(var(--destructive))",
+        },
+        card: {
+          DEFAULT: "hsl(var(--card))",
+          foreground: "hsl(var(--card-foreground))",
+        },
+        popover: {
+          DEFAULT: "hsl(var(--popover))",
+          foreground: "hsl(var(--popover-foreground))",
+        },
+        chart: {
+          1: "hsl(var(--chart-1))",
+          2: "hsl(var(--chart-2))",
+          3: "hsl(var(--chart-3))",
+          4: "hsl(var(--chart-4))",
+          5: "hsl(var(--chart-5))",
+        },
+        // legacy compatibility — mirrors the pre-rebuild palette so existing
+        // components keep compiling during tasks #20/#21.
+        canvas: {
+          DEFAULT: "hsl(var(--background))",
+          surface: "hsl(var(--surface))",
+          elevated: "hsl(var(--elevated))",
+        },
+        fg: {
+          DEFAULT: "hsl(var(--foreground))",
+          muted: "hsl(var(--muted))",
+          faint: "hsl(var(--faint))",
         },
       },
       fontFamily: {
-        display: [
-          "Fraunces",
-          "Iowan Old Style",
-          "Apple Garamond",
-          "Georgia",
-          "serif",
-        ],
-        sans: [
-          "IBM Plex Sans",
-          "SF Pro Text",
-          "ui-sans-serif",
-          "system-ui",
-          "sans-serif",
-        ],
-        mono: [
-          "IBM Plex Mono",
-          "SF Mono",
-          "ui-monospace",
-          "Menlo",
-          "monospace",
-        ],
+        sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],
+        mono: ["JetBrains Mono", "ui-monospace", "SFMono-Regular", "monospace"],
       },
       borderRadius: {
-        sm: "2px",
-        DEFAULT: "0",  // TRUE uses square panels
-        md: "2px",
-        lg: "0",
+        xs: "var(--radius-xs)",
+        sm: "var(--radius-sm)",
+        DEFAULT: "var(--radius)",
+        md: "var(--radius-md)",
+        lg: "var(--radius-lg)",
+        xl: "var(--radius-xl)",
+      },
+      boxShadow: {
+        xs: "var(--shadow-xs)",
+        sm: "var(--shadow-sm)",
+        md: "var(--shadow-md)",
+        lg: "var(--shadow-lg)",
+        ring: "var(--shadow-ring)",
       },
       fontSize: {
-        "mono-xs": ["10px", { lineHeight: "1.6", letterSpacing: "0.16em" }],
-        "mono-sm": ["11px", { lineHeight: "1.6", letterSpacing: "0.08em" }],
+        "mono-xs": ["10px", { lineHeight: "1.6" }],
+        "mono-sm": ["11px", { lineHeight: "1.6" }],
         "mono-base": ["12px", { lineHeight: "1.6" }],
         "mono-lg": ["13px", { lineHeight: "1.6" }],
       },
+      transitionDuration: {
+        fast: "100ms",
+        DEFAULT: "160ms",
+        slow: "240ms",
+      },
+      transitionTimingFunction: {
+        DEFAULT: "cubic-bezier(0.2, 0.8, 0.2, 1)",
+      },
       keyframes: {
-        pulse: {
-          "0%, 100%": { opacity: "1", transform: "scale(1)" },
-          "50%": { opacity: "0.45", transform: "scale(0.85)" },
+        pulseDot: {
+          "0%, 100%": { opacity: "0.4" },
+          "50%": { opacity: "1" },
         },
-        heartbeat: {
-          "0%, 100%": { transform: "scale(1)", boxShadow: "0 0 0 0 rgba(87,210,142,0.55)" },
-          "20%": { transform: "scale(1.25)", boxShadow: "0 0 0 4px rgba(87,210,142,0.18)" },
-          "40%": { transform: "scale(1)", boxShadow: "0 0 0 8px rgba(87,210,142,0)" },
-          "60%": { transform: "scale(1.15)", boxShadow: "0 0 0 6px rgba(87,210,142,0.10)" },
-          "80%": { transform: "scale(1)", boxShadow: "0 0 0 0 rgba(87,210,142,0)" },
+        caret: {
+          "0%, 100%": { opacity: "0" },
+          "50%": { opacity: "1" },
         },
-        marquee: {
-          "0%": { transform: "translate3d(0,0,0)" },
-          "100%": { transform: "translate3d(-50%,0,0)" },
+        meter: {
+          "0%": { backgroundPositionX: "0%" },
+          "100%": { backgroundPositionX: "200%" },
+        },
+        "fade-in": {
+          from: { opacity: "0" },
+          to: { opacity: "1" },
+        },
+        "slide-up": {
+          from: { opacity: "0", transform: "translateY(4px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
+        },
+        "slide-in-right": {
+          from: { transform: "translateX(100%)" },
+          to: { transform: "translateX(0)" },
+        },
+        "slide-out-right": {
+          from: { transform: "translateX(0)" },
+          to: { transform: "translateX(100%)" },
+        },
+        "scale-in": {
+          from: { opacity: "0", transform: "scale(0.96)" },
+          to: { opacity: "1", transform: "scale(1)" },
+        },
+        shimmer: {
+          "100%": { transform: "translateX(100%)" },
         },
       },
       animation: {
-        "pulse-dot": "pulse 1.4s ease-in-out infinite",
-        heartbeat: "heartbeat 1.2s ease-in-out infinite",
-        marquee: "marquee 60s linear infinite",
+        "pulse-dot": "pulseDot 1.2s ease-in-out infinite",
+        caret: "caret 1s step-end infinite",
+        meter: "meter 2s linear infinite",
+        "fade-in": "fade-in 160ms cubic-bezier(0.2, 0.8, 0.2, 1)",
+        "slide-up": "slide-up 160ms cubic-bezier(0.2, 0.8, 0.2, 1)",
+        "slide-in-right": "slide-in-right 240ms cubic-bezier(0.2, 0.8, 0.2, 1)",
+        "slide-out-right":
+          "slide-out-right 160ms cubic-bezier(0.2, 0.8, 0.2, 1)",
+        "scale-in": "scale-in 100ms cubic-bezier(0.2, 0.8, 0.2, 1)",
       },
     },
   },

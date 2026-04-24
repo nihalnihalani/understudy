@@ -1,54 +1,52 @@
-// UPLOAD screen — beat 0:00-0:20 (the record-capture preamble).
-// Drops a .mp4, previews the first frame, POSTs to /synthesize, routes to HUD.
+// UPLOAD — beat 0:00-0:20. Drops a .mp4, probes first-frame thumb + duration
+// locally, POSTs to /synthesize, navigates to the HUD. Historical recordings
+// don't have a real API yet; we surface recent AGENTS as the closest proxy.
+//
 // Data shape: POST /synthesize -> SynthesizeAccepted (apps/api/schemas.py).
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { uploadRecording, ApiError } from "@/api/client";
-import { formatBytes } from "@/lib/format";
-import { MeterBar } from "@/components/MeterBar";
-import { cn } from "@/lib/cn";
-
-interface Staged {
-  file: File;
-  durationSeconds?: number;
-  width?: number;
-  height?: number;
-  thumbDataUrl?: string;
-}
+import { FileVideo, Clock, Sparkles, Info } from "lucide-react";
+import { PageHeader } from "@/layouts/AppShell";
+import { uploadRecording, ApiError, api } from "@/api/client";
+import { DropZone } from "@/components/synthesis/DropZone";
+import {
+  UploadProgress,
+  type StagedFile,
+} from "@/components/synthesis/UploadProgress";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Separator } from "@/components/ui/separator";
+import { toast } from "@/components/ui/toast";
+import { cn } from "@/lib/utils";
+import type { Agent } from "@/api/types";
 
 export default function Upload() {
   const nav = useNavigate();
-  const [staged, setStaged] = useState<Staged | null>(null);
-  const [progress, setProgress] = useState<number>(0);
+  const [staged, setStaged] = useState<StagedFile | null>(null);
+  const [progress, setProgress] = useState(0);
   const [uploading, setUploading] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const stage = useCallback(async (file: File) => {
-    setErr(null);
-    if (file.type && file.type !== "video/mp4") {
-      setErr(`expected video/mp4, got ${file.type}`);
-      return;
-    }
-    if (file.size > 200 * 1024 * 1024) {
-      setErr(`${formatBytes(file.size)} > 200 MB cap`);
-      return;
-    }
-    // Probe the mp4 for duration + first-frame thumb (no server round-trip).
+    setError(null);
     const url = URL.createObjectURL(file);
     const video = document.createElement("video");
     video.preload = "metadata";
     video.src = url;
     video.muted = true;
     await new Promise<void>((resolve) => {
-      video.onloadedmetadata = () => resolve();
-      video.onerror = () => resolve();
+      const done = () => resolve();
+      video.onloadedmetadata = done;
+      video.onerror = done;
     });
     const thumb = await captureThumb(video).catch(() => undefined);
     setStaged({
       file,
-      durationSeconds: isFinite(video.duration) ? video.duration : undefined,
+      durationSeconds: Number.isFinite(video.duration)
+        ? video.duration
+        : undefined,
       width: video.videoWidth || undefined,
       height: video.videoHeight || undefined,
       thumbDataUrl: thumb,
@@ -56,170 +54,241 @@ export default function Upload() {
     URL.revokeObjectURL(url);
   }, []);
 
-  const onDrop = useCallback(
-    (e: React.DragEvent<HTMLLabelElement>) => {
-      e.preventDefault();
-      const f = e.dataTransfer.files?.[0];
-      if (f) void stage(f);
-    },
-    [stage]
-  );
-
   const startSynthesis = useCallback(async () => {
     if (!staged) return;
     setUploading(true);
     setProgress(0);
-    setErr(null);
+    setError(null);
     try {
       const res = await uploadRecording(staged.file, setProgress);
+      toast.success("Synthesis kicked off", {
+        description: `run-${res.synthesis_run_id.slice(0, 8)}`,
+      });
       nav(`/synthesize/${res.synthesis_run_id}`);
     } catch (e) {
       setUploading(false);
-      setErr(
+      const message =
         e instanceof ApiError
           ? `${e.status}: ${e.message}`
           : e instanceof Error
           ? e.message
-          : "upload failed"
-      );
+          : "upload failed";
+      setError(message);
+      toast.error("Upload failed", { description: message });
     }
   }, [staged, nav]);
 
+  const cancel = useCallback(() => {
+    setStaged(null);
+    setProgress(0);
+    setUploading(false);
+    setError(null);
+  }, []);
+
   return (
-    <div className="max-w-[860px] mx-auto py-2">
-      {/* TRUE-style hero */}
-      <header className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-10 items-end pb-10 mb-8 border-b border-border-subtle">
-        <div>
-          <div className="section-tag mb-4">Mission Brief — 001</div>
-          <h1 className="font-display font-normal leading-[0.9] tracking-[-0.035em] text-[clamp(48px,7vw,96px)] m-0 text-fg [font-variation-settings:'opsz'_144,'SOFT'_20]">
-            Show it <em className="font-display-italic [font-variation-settings:'opsz'_144,'SOFT'_100]">once.</em><br />
-            <span className="text-fg-dim italic [font-variation-settings:'opsz'_144,'SOFT'_100]">Understudy</span> takes over.
-          </h1>
-        </div>
-        <p className="max-w-[360px] text-[14px] leading-[1.6] text-fg-muted border-l border-border-strong pl-5 pb-2">
-          Drop a 60-second screen recording.{" "}
-          <strong className="text-fg font-medium">Three Gemini models</strong>{" "}
-          synthesize a signed, federated, deployed web agent in ~90 seconds.
-          Every artifact is replayable, signed, and verifiable.
-        </p>
-      </header>
+    <div className="space-y-6">
+      <PageHeader
+        eyebrow="0:00 — 0:20 · record"
+        title="Upload a web workflow recording"
+        description="Drop a 60-second capture of the task you want an agent to learn. The synthesis pipeline converts it into a pinned, reproducible script."
+      />
 
-      {!staged && (
-        <label
-          htmlFor="file-input"
-          onDrop={onDrop}
-          onDragOver={(e) => e.preventDefault()}
-          className={cn(
-            "block border border-dashed p-16 text-center cursor-pointer transition-colors",
-            "border-border-strong hover:border-accent-amber bg-canvas-panel/40 hover:bg-primary-soft"
-          )}
-          aria-label="Drop an mp4 recording here"
-        >
-          <input
-            ref={inputRef}
-            id="file-input"
-            type="file"
-            accept="video/mp4"
-            className="sr-only"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) void stage(f);
-            }}
-          />
-          <div className="flex flex-col items-center gap-5">
-            <div className="brand-mark w-14 h-14 text-[26px]">▶</div>
-            <div className="font-display text-[28px] leading-tight tracking-[-0.01em] text-fg [font-variation-settings:'opsz'_36,'SOFT'_30]">
-              Drop your <em className="font-display-italic [font-variation-settings:'opsz'_144,'SOFT'_100]">.mp4</em> recording
-            </div>
-            <div className="text-[13px] text-fg-muted max-w-md leading-[1.6]">
-              60 seconds or less. Scene-change keyframing will cut this to 5–8
-              frames before Gemini 3.1 Flash-Lite sees it.
-            </div>
-            <div className="chip mt-2">max 200 MB · video/mp4</div>
-          </div>
-        </label>
-      )}
-
-      {staged && (
-        <section className="card p-4 flex items-center gap-4" aria-label="Staged recording">
-          <div className="w-[96px] h-[54px] bg-canvas-elevated rounded border border-border-subtle overflow-hidden flex items-center justify-center">
-            {staged.thumbDataUrl ? (
-              <img
-                src={staged.thumbDataUrl}
-                alt=""
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <span className="text-fg-faint text-mono-xs">no preview</span>
-            )}
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-[14px] font-medium truncate">
-              {staged.file.name}
-            </div>
-            <div className="text-mono-base font-mono text-fg-muted mt-1">
-              {staged.durationSeconds
-                ? `${staged.durationSeconds.toFixed(1)}s`
-                : "—"}
-              {" · "}
-              {staged.width ? `${staged.width}×${staged.height}` : "resolution tbd"}
-              {" · "}
-              {formatBytes(staged.file.size)}
-            </div>
-            <div className="mt-2">
-              <MeterBar
-                value={progress}
-                tone={progress === 100 ? "emerald" : "indigo"}
-                label="upload progress"
-                className="h-1"
-              />
-              <div className="mt-1.5 text-mono-sm font-mono text-fg-muted truncate">
-                {uploading
-                  ? `Uploading to /synthesize…  ${progress}%`
-                  : "Ready. Click Start synthesis to kick off the 3-Gemini pipeline."}
-              </div>
-            </div>
-          </div>
-          <div className="flex flex-col gap-2">
-            <button
-              type="button"
-              className="btn btn-ghost"
-              onClick={() => {
-                setStaged(null);
-                setProgress(0);
-                setUploading(false);
-                setErr(null);
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <section className="space-y-4">
+          {!staged ? (
+            <DropZone
+              onFileSelect={stage}
+              onError={(msg) => {
+                setError(msg);
+                toast.error("Invalid recording", { description: msg });
               }}
-              disabled={uploading}
+            />
+          ) : (
+            <UploadProgress
+              staged={staged}
+              progress={progress}
+              uploading={uploading}
+              onCancel={cancel}
+              onStart={startSynthesis}
+            />
+          )}
+
+          {error && (
+            <div
+              role="alert"
+              className={cn(
+                "rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2",
+                "text-[13px] text-destructive"
+              )}
             >
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={startSynthesis}
-              disabled={uploading}
-            >
-              {uploading ? "Uploading…" : "Start synthesis"}
-            </button>
-          </div>
+              {error}
+            </div>
+          )}
+
+          <PipelinePreview />
         </section>
-      )}
 
-      {err && (
-        <div
-          className="mt-4 border border-accent-crimson/40 bg-accent-crimson/5 text-accent-crimson text-[13px] rounded px-3 py-2"
-          role="alert"
-        >
-          {err}
-        </div>
-      )}
-
-      <footer className="mt-10 flex items-center justify-between text-mono-sm font-mono text-fg-faint">
-        <span>pipeline: flash-lite → 3.1 pro → 3 flash</span>
-        <span>SLSA L2 · Chainguard · cosign</span>
-      </footer>
+        <aside aria-label="Recent recordings">
+          <RecentRecordings />
+        </aside>
+      </div>
     </div>
+  );
+}
+
+function PipelinePreview() {
+  const stages = [
+    {
+      label: "Action detection",
+      model: "gemini-3-flash-lite",
+      note: "4 tool_calls emitted per keyframe",
+    },
+    {
+      label: "Intent abstraction",
+      model: "gemini-3-pro",
+      note: "thinking_level: high",
+    },
+    {
+      label: "Script emission",
+      model: "gemini-3-flash",
+      note: "emits @tinyfish/cli TypeScript",
+    },
+  ];
+  return (
+    <Card>
+      <CardContent className="p-5">
+        <div className="mb-3 flex items-center gap-2">
+          <Sparkles className="size-4 text-primary" />
+          <h3 className="text-[14px] font-semibold text-foreground">
+            What happens next
+          </h3>
+        </div>
+        <ol className="space-y-3">
+          {stages.map((s, i) => (
+            <li key={s.label} className="flex gap-3">
+              <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border border-border bg-elevated font-mono text-[10px] text-muted-foreground">
+                {i + 1}
+              </span>
+              <div className="min-w-0">
+                <div className="text-[13px] font-medium text-foreground">
+                  {s.label}
+                </div>
+                <div className="font-mono text-[11px] text-muted-foreground">
+                  {s.model} · {s.note}
+                </div>
+              </div>
+            </li>
+          ))}
+        </ol>
+        <Separator className="my-4" />
+        <div className="flex items-start gap-2 font-mono text-[11px] text-muted-foreground">
+          <Info className="mt-0.5 size-3 text-faint" />
+          <span>
+            60 frames → 8 keyframes via OpenCV scene-change, ~10× token
+            reduction before Gemini ever sees the video.
+          </span>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function RecentRecordings() {
+  // TODO: live-wire to a dedicated /recordings endpoint once the backend
+  // exposes one. For now, agents are a close proxy — each agent was born
+  // from a recording, so surfacing them keeps the right-rail informative.
+  const [agents, setAgents] = useState<Agent[] | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .listAgents()
+      .then((list) => !cancelled && setAgents(list.slice(0, 6)))
+      .catch((e) => {
+        if (cancelled) return;
+        setAgents([]);
+        setErr(e instanceof Error ? e.message : "failed to load");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return (
+    <Card className="sticky top-20">
+      <CardContent className="p-5">
+        <div className="mb-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <FileVideo className="size-4 text-muted-foreground" />
+            <h3 className="text-[14px] font-semibold text-foreground">
+              Recent recordings
+            </h3>
+          </div>
+          <Badge variant="outline" className="text-faint">
+            via /agents
+          </Badge>
+        </div>
+
+        {agents === null && (
+          <ul className="space-y-2">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <li key={i} className="flex items-center gap-2">
+                <Skeleton className="size-8 rounded-md" />
+                <div className="flex-1 space-y-1">
+                  <Skeleton className="h-3 w-3/4" />
+                  <Skeleton className="h-2 w-1/2" />
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {agents && agents.length === 0 && (
+          <p className="text-[12px] text-muted-foreground">
+            {err ?? "No recordings yet — drop an .mp4 to get started."}
+          </p>
+        )}
+
+        {agents && agents.length > 0 && (
+          <ul className="space-y-1.5">
+            {agents.map((a) => (
+              <li key={a.id}>
+                <button
+                  type="button"
+                  className={cn(
+                    "flex w-full items-center gap-3 rounded-md px-2 py-2 text-left",
+                    "transition-colors duration-fast hover:bg-elevated",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  )}
+                >
+                  <span className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border bg-elevated text-muted-foreground">
+                    <FileVideo className="size-3.5" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-mono text-[11px] text-foreground">
+                      {a.ams_namespace.replace("ams:agent:", "")}
+                    </div>
+                    <div className="flex items-center gap-2 font-mono text-[10px] text-muted-foreground">
+                      <Clock className="size-2.5" />
+                      <span className="truncate">
+                        {a.graphql_endpoint.replace("https://", "")}
+                      </span>
+                    </div>
+                  </div>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <Separator className="my-3" />
+        <p className="font-mono text-[10px] leading-[1.5] text-faint">
+          TODO: live-wire /recordings endpoint · this list approximates history
+          from the agents registry.
+        </p>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -228,13 +297,13 @@ async function captureThumb(video: HTMLVideoElement): Promise<string> {
     const seek = Math.min(0.1, video.duration || 0.1);
     const onSeeked = () => {
       try {
-        const c = document.createElement("canvas");
-        c.width = video.videoWidth || 192;
-        c.height = video.videoHeight || 108;
-        const ctx = c.getContext("2d");
-        if (!ctx) return reject(new Error("no ctx"));
-        ctx.drawImage(video, 0, 0, c.width, c.height);
-        resolve(c.toDataURL("image/jpeg", 0.6));
+        const canvas = document.createElement("canvas");
+        canvas.width = video.videoWidth || 320;
+        canvas.height = video.videoHeight || 180;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return reject(new Error("no canvas context"));
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", 0.6));
       } catch (e) {
         reject(e);
       }
