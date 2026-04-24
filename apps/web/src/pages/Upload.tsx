@@ -11,6 +11,7 @@ import { FileVideo, Clock, Sparkles, Info } from "lucide-react";
 import { PageHeader } from "@/layouts/AppShell";
 import { uploadRecording, ApiError, api } from "@/api/client";
 import { DropZone } from "@/components/synthesis/DropZone";
+import { ScreenRecorder } from "@/components/synthesis/ScreenRecorder";
 import {
   UploadProgress,
   type StagedFile,
@@ -106,13 +107,26 @@ export default function Upload() {
             transition={{ duration: 0.2, type: "spring", stiffness: 300, damping: 30 }}
           >
             {!staged ? (
-              <DropZone
-                onFileSelect={stage}
-                onError={(msg) => {
-                  setError(msg);
-                  toast.error("Invalid recording", { description: msg });
-                }}
-              />
+              <div className="space-y-3">
+                <DropZone
+                  onFileSelect={stage}
+                  onError={(msg) => {
+                    setError(msg);
+                    toast.error("Invalid recording", { description: msg });
+                  }}
+                />
+                <div className="flex items-center gap-3 text-[10px] font-mono uppercase tracking-[0.18em] text-faint">
+                  <span className="h-px flex-1 bg-border" />
+                  or record live
+                  <span className="h-px flex-1 bg-border" />
+                </div>
+                <ScreenRecorder
+                  onRecorded={(file) => {
+                    setError(null);
+                    void stage(file);
+                  }}
+                />
+              </div>
             ) : (
               <UploadProgress
                 staged={staged}

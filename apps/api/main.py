@@ -50,7 +50,7 @@ from .store import Store, get_store
 
 
 MAX_UPLOAD_BYTES = 200 * 1024 * 1024  # 200 MB — 60s 1080p mp4 fits comfortably
-ALLOWED_MIME = {"video/mp4", "application/octet-stream"}
+ALLOWED_MIME = {"video/mp4", "video/webm", "application/octet-stream"}
 
 # Worker fetches uploads via `file://` until S3/R2 is wired in. Override with
 # UPLOAD_DIR for prod or shared volumes.
@@ -155,10 +155,12 @@ async def synthesize(
 
     Returns 202 immediately — worker is responsible for the three-Gemini pipeline (§3).
     """
-    if recording.content_type and recording.content_type not in ALLOWED_MIME:
+    # Strip codec params (e.g. `video/webm;codecs=vp9`) before comparing.
+    base_mime = (recording.content_type or "").split(";", 1)[0].strip()
+    if base_mime and base_mime not in ALLOWED_MIME:
         raise HTTPException(
             status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-            detail=f"expected video/mp4, got {recording.content_type}",
+            detail=f"expected one of {sorted(ALLOWED_MIME)}, got {recording.content_type}",
         )
     recording_id = uuid4()
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
