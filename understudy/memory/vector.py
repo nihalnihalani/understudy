@@ -33,7 +33,7 @@ def quantize_int8(vec: NDArray[np.float32]) -> NDArray[np.int8]:
         return np.zeros(vec.shape, dtype=np.int8)
     scale = 127.0 / max_abs
     scaled = np.clip(np.round(vec * scale), -127, 127)
-    return scaled.astype(np.int8)
+    return scaled.astype(np.int8)  # type: ignore[no-any-return]
 
 
 def dequantize_int8(vec: NDArray[np.int8], max_abs: float) -> NDArray[np.float32]:

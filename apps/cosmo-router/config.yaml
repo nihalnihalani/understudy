@@ -23,23 +23,14 @@ execution_config:
     watch_interval: "5s"
 
 # --- Authentication ------------------------------------------------------
-# Bearer token validated against InsForge's remote OAuth MCP JWKS. Tokens
-# are issued by InsForge 2.0 per architecture.md §5; the router rejects
-# unauthenticated requests except for introspection and /health.
-authentication:
-  providers:
-    - name: "insforge-oauth"
-      jwks:
-        url: "${INSFORGE_OAUTH_JWKS_URL}"
-        refresh_interval: "1m"
-      header_names: ["Authorization"]
-      header_value_prefixes: ["Bearer"]
-      audiences:
-        - "${INSFORGE_OAUTH_AUDIENCE}"
-      issuer: "${INSFORGE_OAUTH_ISSUER}"
-
+# InsForge 2.0 moved to API-key auth; the OAuth/JWKS flow assumed by the
+# original Cosmo router config is no longer wired. Auth is temporarily
+# disabled on this router so the demo can show federated queries without
+# requiring a JWT provider. Re-introduce auth here once the production
+# token-issuer is decided (per-agent InsForge API keys, Clerk, Auth0 —
+# whichever wins).
 authorization:
-  require_authentication: true
+  require_authentication: false
 
 # --- Event-Driven Federated Subscriptions (EDFS) -------------------------
 # architecture.md §4 — EDFS Kafka/NATS bindings registered during the

@@ -157,7 +157,7 @@ class MemoryClient:
         raw = self.r.get(f"us:replay:{synth_id}")
         if not raw:
             return None
-        return json.loads(raw.decode() if isinstance(raw, bytes) else raw)
+        return json.loads(raw.decode() if isinstance(raw, bytes) else raw)  # type: ignore[no-any-return]
 
     def consume_rate_token(self, model: str, limit: int, window_s: int) -> bool:
         """Simple counter + TTL token bucket for `rate:gemini:{model}`."""

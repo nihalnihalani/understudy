@@ -25,9 +25,8 @@ apps/cosmo-router/
 
 ```bash
 docker compose up cosmo-router
-# once healthy:
+# once healthy (auth currently disabled — see Config highlights below):
 curl -X POST http://localhost:4000/graphql \
-  -H 'Authorization: Bearer $INSFORGE_OAUTH_DEMO_TOKEN' \
   -H 'Content-Type: application/json' \
   -d '{"query":"{__schema{types{name}}}"}'
 ```
@@ -48,7 +47,7 @@ Offline fallback: if `wgc` is missing or `COSMO_API_KEY` is unset, cloud registr
 ## Config highlights
 
 - **Supergraph polling** — `execution_config.file` watches `supergraph.json` every 5s.
-- **Bearer auth** — tokens validated against InsForge's OAuth JWKS (`INSFORGE_OAUTH_*` env vars); unauthenticated requests rejected except on `/health`.
+- **Auth** — currently disabled (`authorization.require_authentication: false` in `config.yaml`). InsForge 2.0 moved to API-key auth; the original OAuth/JWKS provider is obsolete. Re-introduce here once the production token-issuer is decided (per-agent InsForge API keys, Clerk, Auth0, etc.).
 - **EDFS** — Kafka (`EDFS_KAFKA_*`) and NATS (`EDFS_NATS_*`) providers both configured so Dream Query's `register_edfs_events` step can choose per topic.
 - **Secrets via env only** — every credential is `${VAR}` substitution; never write secrets into `config.yaml`.
 

@@ -100,7 +100,7 @@ Add the credentials as two repo secrets:
 - `CHAINGUARD_PYTHON_USERNAME` — the chainctl username with `/` → `_`
 - `CHAINGUARD_PYTHON_PASSWORD` — the chainctl password
 
-Then patch the `build-sign-push` job in `infra/github-actions/release.yml`:
+Then patch the `build-sign-push` job in `.github/workflows/release.yml`:
 
 ```yaml
       - id: build
@@ -255,10 +255,10 @@ Or just run `scripts/chainguard_init.sh` again — it rotates both ecosystems at
 
 ## InsForge CI persistence
 
-After the cosign keyless sign + SLSA attestation + Rekor transparency-log readback steps land the canonical supply-chain proof, the `attest-and-verify` job in [`infra/github-actions/release.yml`](../infra/github-actions/release.yml) POSTs three rows into the InsForge tables that landed in commit `3e8d159`:
+After the cosign keyless sign + SLSA attestation + Rekor transparency-log readback steps land the canonical supply-chain proof, the `attest-and-verify` job in [`.github/workflows/release.yml`](../.github/workflows/release.yml) POSTs three rows into the InsForge tables that landed in commit `3e8d159`:
 
-1. **`image`** — `{digest, registry, built_at}`. `409 Conflict` on duplicate digest is treated as success (idempotent re-runs).
-2. **`slsa_attestation`** — `{image_digest, predicate_type, builder_id, materials}`. `materials` is the in-toto resolved-dependencies array decoded from the DSSE payload of the `*.intoto.jsonl` produced by `slsa-github-generator`.
+1. **`image`** — `{digest, registry, built_at}`. `409 Conflict` on duplicate digest is treated as success (idempotent re-runs). `registry` is the full path (`ghcr.io/<owner>/<image>`), matching the worker's `DEFAULT_REGISTRY` so the two writers don't collide on the same image.digest PK with different `registry` column values.
+2. **`slsa_attestation`** — `{image_digest, predicate_type, builder_id, materials}`. `materials` is a **dict** with `resolved_dependencies` (array decoded from the DSSE payload of the `*.intoto.jsonl` produced by `slsa-github-generator`) + `build_type`. This shape matches `apps/synthesis-worker/main.py:_persist_artifacts` so the jsonb column is consistently traversable.
 3. **`sbom`** — `{image_digest, format, generation_time, components}`. `components` is the `packages` array from the build-time Syft `sbom.spdx.json`.
 
 This is a **secondary** persistence path — the canonical attestation lives in Sigstore (Fulcio cert + Rekor entry). The InsForge rows exist so the web frontend can render the receipt without re-fetching from Rekor. If the writes fail, CI emits a `::warning::` and continues; it never breaks the release on this path.
@@ -271,10 +271,6 @@ Add at Settings → Secrets and variables → Actions:
 - `INSFORGE_API_KEY` — Bearer token for `POST /api/database/records/{table}`
 
 If either is missing the step logs a warning and exits 0 — the build still passes.
-
-### Caveat — workflow file location
-
-The release workflow currently lives at `infra/github-actions/release.yml`, **not** `.github/workflows/release.yml`. GitHub Actions only auto-discovers workflows under `.github/workflows/`, so the InsForge persistence step (and the rest of the release pipeline) will not fire on push until the file is moved. The step is correct as code; moving the file is a one-line `git mv` whenever the team is ready to flip it on.
 
 ---
 

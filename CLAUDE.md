@@ -295,7 +295,7 @@ Only a few are strictly required for local dev. See `.env.example` for the full 
 GEMINI_API_KEY=             # Gemini 3 / 3.1 API key — synthesis pipeline
 GOOGLE_API_KEY=             # SDK reads this name internally; set to same value
 TINYFISH_API_KEY=           # TinyFish CLI + Agent Skills
-INSFORGE_PROJECT_URL=       # From InsForge dashboard → Project Settings → General
+INSFORGE_URL=               # From InsForge dashboard → Project Settings → General (oss_host)
 INSFORGE_API_KEY=           # From InsForge dashboard; auth is Authorization: Bearer
 
 # ─── REQUIRED (defaults work locally) ────────────────

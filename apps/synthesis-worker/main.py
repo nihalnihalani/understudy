@@ -130,8 +130,18 @@ def _persist_artifacts(writer: InsforgeWriter, result: SynthesisResult) -> None:
         for s in skills
     ]
 
+    # Keep this shape in lock-step with the CI path at
+    # .github/workflows/release.yml (-> `materials_json` in the
+    # "Publish attestation metadata to InsForge" step). Both writers emit a
+    # dict with `resolved_dependencies` (array) so the jsonb column is
+    # consistently traversable from the frontend. CI writers populate
+    # `resolved_dependencies` from the in-toto predicate; worker writers only
+    # have the coarse sources (repo + base image) available pre-signing.
     materials = {
-        "source": {"uri": "git+https://github.com/nihalnihalani/understudy"},
+        "resolved_dependencies": [
+            {"uri": "git+https://github.com/nihalnihalani/understudy"},
+            {"uri": "cgr.dev/chainguard/wolfi-base"},
+        ],
         "synth_id": result.synth_id,
         "build_type": "https://slsa.dev/container-based-build/v0.1",
     }

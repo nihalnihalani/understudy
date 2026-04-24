@@ -20,7 +20,7 @@ import time
 from collections.abc import AsyncIterator
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
 from uuid import UUID, uuid4
 
 import httpx
@@ -74,7 +74,7 @@ app = FastAPI(
 
 
 @app.middleware("http")
-async def trace_middleware(request: Request, call_next: Callable) -> Response:
+async def trace_middleware(request: Request, call_next: Callable[..., Any]) -> Response:
     """Logs every request; for synthesis routes, also XADDs to `run:synth:{id}`.
 
     Tailable from the UI via `XREAD BLOCK 0 STREAMS run:synth:{id}` (§9).
@@ -139,7 +139,7 @@ async def healthz(redis: RedisClient = Depends(get_redis)) -> HealthResponse:
         ),
         cosmo_probe,
         _probe_env("chainguard", "GHCR_TOKEN", "cosign/Fulcio/Rekor configured"),
-        _probe_env("insforge", "INSFORGE_OAUTH_CLIENT_ID", "Remote OAuth MCP configured"),
+        _probe_env("insforge", "INSFORGE_API_KEY", "InsForge 2.0 API key configured"),
         _probe_env("tinyfish", "TINYFISH_API_KEY", "CLI + Agent Skills configured"),
     ]
     return HealthResponse(status="ok", demo_mode=_demo_mode(), services=probes)
