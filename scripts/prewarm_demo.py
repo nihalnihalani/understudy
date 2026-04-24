@@ -3,17 +3,212 @@
 Run against the production Redis so stage latency is entirely cache-hit. See architecture.md
 §14 (Hermetic Demo Mode) — this script produces the `us:replay:{synth_id}` payloads consumed
 by `DEMO_MODE=replay`.
+
+Every key pattern in architecture.md §9 that the demo script touches appears here.
+Run: `python -m scripts.prewarm_demo` or `python scripts/prewarm_demo.py`.
 """
 
+from __future__ import annotations
 
-def main() -> None:
-    # TODO(task #7/#11): seed Redis keys per architecture.md §9 table:
-    #   - us:replay:{synth_id}  (pre-recorded full pipeline trace)
-    #   - langcache:gemini:{hash}  (repeated-query hits < 50ms)
-    #   - vset:agent:{id}:memory   (related-query recall demo)
-    #   - dream:{run_id}           (Cosmo Dream Query cached result)
-    raise NotImplementedError("see task #7 / task #11")
+import argparse
+import os
+import sys
+import time
+from pathlib import Path
+
+import numpy as np
+
+_ROOT = Path(__file__).resolve().parent.parent
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
+
+from understudy.memory.client import MemoryClient  # noqa: E402
+from understudy.memory.langcache import LangCache  # noqa: E402
+from understudy.memory.schema import MemoryTurn  # noqa: E402
+
+
+DEMO_AGENT = "export-shopify-orders"
+DEMO_SYNTH_ID = "synth-demo-001"
+DEMO_RUN_ID = "run-demo-001"
+
+
+# The 5 prior turns the demo agent should "remember" (architecture.md §15 beat 2:40-2:55).
+SEED_TURNS: list[tuple[str, str]] = [
+    ("user", "Export yesterday's Shopify orders to CSV."),
+    ("agent", "Filtered orders by date=yesterday, exported 142 rows to orders.csv."),
+    ("user", "Filter orders by status = fulfilled, same date range."),
+    ("agent", "Exported 118 fulfilled orders to fulfilled.csv."),
+    ("user", "Do the same for last 7 days."),
+]
+
+
+# Canned Gemini responses — the 2:30-2:40 LangCache hit demo relies on these being present.
+CANNED_GEMINI: list[tuple[str, str, str]] = [
+    (
+        "Export yesterday's Shopify orders to CSV",
+        "gemini-3-flash",
+        (
+            "```ts\nimport { browser } from '@tinyfish/cli';\n"
+            "await browser.goto('https://admin.shopify.com/store/orders');\n"
+            "await browser.filter({ date: 'yesterday' });\n"
+            "await browser.exportCsv('orders.csv');\n```"
+        ),
+    ),
+    (
+        "Filter Shopify orders by status fulfilled and export CSV",
+        "gemini-3-flash",
+        (
+            "```ts\nimport { browser } from '@tinyfish/cli';\n"
+            "await browser.goto('https://admin.shopify.com/store/orders');\n"
+            "await browser.filter({ status: 'fulfilled' });\n"
+            "await browser.exportCsv('fulfilled.csv');\n```"
+        ),
+    ),
+    (
+        "What is the intent of the user recording from Shopify?",
+        "gemini-3.1-pro",
+        (
+            '{"goal":"export Shopify orders filtered by date or status",'
+            '"inputs":[{"name":"date_range","type":"string","default":"yesterday"}],'
+            '"invariants":{"target_site":"shopify.com"}}'
+        ),
+    ),
+]
+
+
+SEED_VECTORS: list[tuple[str, str]] = [
+    ("mem-001", "export yesterday shopify orders csv"),
+    ("mem-002", "filter fulfilled orders export"),
+    ("mem-003", "last seven days shopify orders csv"),
+    ("mem-004", "shopify admin orders page navigation"),
+    ("mem-005", "csv download from shopify admin"),
+]
+
+
+DEMO_DREAM_QUERY = {
+    "desired_operation": (
+        "query ExportOrders($range:String!){ shopifyOrders(dateRange:$range){ id total status } }"
+    ),
+    "sdl_delta": (
+        "extend type Query { shopifyOrders(dateRange: String!): [Order!]! }\n"
+        "type Order { id: ID! total: Money! status: OrderStatus! }"
+    ),
+    "validation_report": "no breaking changes vs live traffic (0/24 ops affected)",
+    "subgraph_id": "shopify_agent_v1",
+}
+
+
+DEMO_REPLAY = {
+    "synth_id": DEMO_SYNTH_ID,
+    "stages": {
+        "action_detection": {
+            "model": "gemini-3.1-flash-lite",
+            "latency_ms": 1240,
+            "events": [
+                {"action": "NAV", "target_description": "orders page"},
+                {"action": "CLICK", "target_description": "date filter"},
+                {"action": "TYPE", "text_typed": "yesterday"},
+                {"action": "CLICK", "target_description": "export button"},
+                {"action": "SUBMIT", "target_description": "export modal"},
+            ],
+        },
+        "intent_abstraction": {
+            "model": "gemini-3.1-pro",
+            "latency_ms": 2180,
+            "goal": "export Shopify orders filtered by date range to CSV",
+        },
+        "script_emission": {
+            "model": "gemini-3-flash",
+            "latency_ms": 2940,
+            "script_preview": CANNED_GEMINI[0][2],
+        },
+    },
+}
+
+
+def _deterministic_embedding(text: str, dim: int = 64) -> np.ndarray:
+    import hashlib
+
+    h = hashlib.sha256(text.encode()).digest()
+    raw = (h * ((dim // len(h)) + 1))[:dim]
+    arr = np.frombuffer(raw, dtype=np.uint8).astype(np.float32)
+    arr = (arr - 127.5) / 127.5
+    norm = np.linalg.norm(arr)
+    if norm > 0:
+        arr = arr / norm
+    return arr.astype(np.float32)
+
+
+def seed_ams(mem: MemoryClient) -> None:
+    mem.ams.wipe()
+    for role, content in SEED_TURNS:
+        mem.record_turn(role, content)
+
+
+def seed_langcache(mem: MemoryClient) -> None:
+    cache: LangCache = mem.langcache
+    for prompt, model, response in CANNED_GEMINI:
+        cache.store(prompt, model, response, agent=DEMO_AGENT)
+    cache.set_policy(DEMO_AGENT, {"ttl_s": "86400", "similarity_threshold": "0.95"})
+
+
+def seed_vectors(mem: MemoryClient) -> None:
+    for mid, text in SEED_VECTORS:
+        mem.remember_embedding(mid, _deterministic_embedding(text), summary=text)
+
+
+def seed_dream(mem: MemoryClient) -> None:
+    mem.store_dream_query(DEMO_RUN_ID, DEMO_DREAM_QUERY)
+
+
+def seed_replay(mem: MemoryClient) -> None:
+    mem.store_replay(DEMO_SYNTH_ID, DEMO_REPLAY)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--redis-url",
+        default=os.environ.get("REDIS_URL", "redis://localhost:6379/0"),
+    )
+    parser.add_argument("--agent", default=DEMO_AGENT)
+    parser.add_argument("--dry-run", action="store_true", help="Print plan, do not write.")
+    args = parser.parse_args()
+
+    print(f"[prewarm] redis={args.redis_url} agent={args.agent}")
+    if args.dry_run:
+        print("[prewarm] DRY RUN — would seed:")
+        print(f"  - AMS: {len(SEED_TURNS)} turns")
+        print(f"  - LangCache: {len(CANNED_GEMINI)} canned Gemini responses")
+        print(f"  - Vector Set: {len(SEED_VECTORS)} memory embeddings")
+        print(f"  - dream:{DEMO_RUN_ID}")
+        print(f"  - us:replay:{DEMO_SYNTH_ID}")
+        return 0
+
+    import redis
+
+    r = redis.Redis.from_url(args.redis_url)
+    mem = MemoryClient(agent_id=args.agent, redis_client=r)
+
+    start = time.perf_counter()
+    seed_ams(mem)
+    seed_langcache(mem)
+    seed_vectors(mem)
+    seed_dream(mem)
+    seed_replay(mem)
+    elapsed = (time.perf_counter() - start) * 1000
+
+    # Sanity-check the dump — this is the command BizDev runs on stage.
+    dump = mem.dump()
+    print(
+        f"[prewarm] done in {elapsed:.0f}ms: "
+        f"{len(dump['recent_turns'])} turns, "
+        f"{len(dump['topics'])} topics, "
+        f"{len(dump['entities'])} entities, "
+        f"{dump['vector_count']} vectors"
+    )
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
