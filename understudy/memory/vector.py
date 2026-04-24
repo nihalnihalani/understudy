@@ -79,8 +79,8 @@ class VectorSets:
     ) -> None:
         key = self._key_agent_memory(agent_id)
         q = quantize_int8(embedding)
-        values = ",".join(str(int(x)) for x in q.tolist())
-        args: list[Any] = ["VADD", key, "VALUES", str(len(q)), values, memory_id, "Q8"]
+        values = [str(int(x)) for x in q.tolist()]
+        args: list[Any] = ["VADD", key, "VALUES", str(len(q)), *values, memory_id, "Q8"]
         if metadata:
             import json
 

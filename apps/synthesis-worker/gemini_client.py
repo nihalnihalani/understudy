@@ -159,11 +159,28 @@ class GeminiClient:
 
     @staticmethod
     async def _maybe_replay(replay_key: str | None, redis: Any) -> dict[str, Any] | None:
-        """Short-circuit to `us:replay:{synth_id}` when DEMO_MODE=replay."""
+        """Short-circuit to `us:replay:{synth_id}` when DEMO_MODE=replay.
+
+        When the per-synth_id key is missing, fall back to the seeded
+        `synth-demo-001` keys (architecture.md §14: hermetic mode reuses one
+        canned trace across every fresh upload). This keeps the demo path
+        working without per-upload prewarming.
+        """
         if DEMO_MODE != "replay" or replay_key is None or redis is None:
             return None
         raw = await redis.get(replay_key)
         if not raw:
+            # Try the canonical seeded id — replace the synth_id segment.
+            # Keys look like `us:replay:{synth_id}:{stage}` or `us:replay:{synth_id}`.
+            parts = replay_key.split(":")
+            if len(parts) >= 3 and parts[0] == "us" and parts[1] == "replay":
+                parts[2] = "synth-demo-001"
+                fallback = ":".join(parts)
+                if fallback != replay_key:
+                    raw = await redis.get(fallback)
+                    if raw:
+                        log.info("replay fallback hit: %s -> %s", replay_key, fallback)
+                        return json.loads(raw)
             log.warning("DEMO_MODE=replay but key missing: %s", replay_key)
             return None
         log.info("replay hit: %s", replay_key)

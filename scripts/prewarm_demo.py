@@ -173,6 +173,71 @@ def seed_replay(mem: MemoryClient) -> None:
     mem.store_replay(DEMO_SYNTH_ID, DEMO_REPLAY)
 
 
+# Canned per-stage Gemini responses matching the schemas the worker expects.
+# Keys land at us:replay:synth-demo-001:{action_<i>,intent,script} and are read by
+# `_maybe_replay` in apps/synthesis-worker/gemini_client.py — including the
+# `synth-demo-001` fallback that catches every fresh upload in DEMO_MODE=replay.
+_STAGE_ACTION = {
+    "action": "CLICK",
+    "target_description": "Orders nav link",
+    "bbox": [120.0, 64.0, 200.0, 88.0],
+    "text_typed": None,
+    "confidence": 0.94,
+}
+_STAGE_INTENT = {
+    "goal": "Export yesterday's Shopify orders to CSV",
+    "inputs": [
+        {"name": "date_range", "type": "string", "default": "yesterday"},
+    ],
+    "invariants": {"target_site": "shopify.com"},
+    "output_schema": {"type": "file", "mime": "text/csv"},
+    "steps": [
+        {"intent": "navigate_to_orders", "selector_hint": "nav >> Orders"},
+        {"intent": "apply_date_filter", "selector_hint": "input[name=date_range]"},
+        {"intent": "export_csv", "selector_hint": "button >> Export"},
+    ],
+}
+_STAGE_SCRIPT = {
+    "script": (
+        "import { tinyfish } from '@tinyfish/cli';\n"
+        "export default async function run({ date_range }) {\n"
+        "  const page = await tinyfish.web_browser.open("
+        "'https://shopify.com/admin');\n"
+        "  await page.skill('web-workflow-pack/navigate', 'Orders');\n"
+        "  await page.skill('web-workflow-pack/filter_date', date_range);\n"
+        "  return page.skill('web-workflow-pack/export_csv');\n"
+        "}\n"
+    ),
+    "cosmo_sdl": "type OrderExport { id: ID! url: String! }",
+    "runtime_manifest": {
+        "tinyfish_products": ["web_browser", "web_fetch"],
+        "redis_namespace": "ams:agent:demo",
+        "insforge_tables": ["order_exports"],
+    },
+    "skills_pinned": [{"name": "web-workflow-pack", "version": "1.4.0"}],
+}
+
+
+def seed_stage_replays(mem: MemoryClient, n_action_frames: int = 16) -> int:
+    """Seed per-stage replay keys the worker reads via `_maybe_replay`.
+
+    Architecture.md §14: hermetic mode reuses one canned trace across every
+    fresh upload — the gemini-client fallback rewrites the synth_id segment
+    of the lookup key to `synth-demo-001` on miss.
+    """
+    import json as _json
+
+    written = 0
+    for i in range(n_action_frames):
+        mem.r.set(
+            f"us:replay:{DEMO_SYNTH_ID}:action_{i}", _json.dumps(_STAGE_ACTION)
+        )
+        written += 1
+    mem.r.set(f"us:replay:{DEMO_SYNTH_ID}:intent", _json.dumps(_STAGE_INTENT))
+    mem.r.set(f"us:replay:{DEMO_SYNTH_ID}:script", _json.dumps(_STAGE_SCRIPT))
+    return written + 2
+
+
 def expected_keys(agent: str) -> list[tuple[str, str]]:
     """Every key prewarm writes, labelled by category. Used by verify() / --check mode.
 
@@ -291,6 +356,7 @@ def main() -> int:
     seed_vectors(mem)
     seed_dream(mem)
     seed_replay(mem)
+    seed_stage_replays(mem)
     elapsed = (time.perf_counter() - start) * 1000
 
     # Sanity-check the dump — this is the command BizDev runs on stage.

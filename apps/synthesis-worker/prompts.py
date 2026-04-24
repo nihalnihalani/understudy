@@ -26,7 +26,7 @@ ACTION_DETECTION_OUTPUT_SCHEMA: dict[str, Any] = {
             "minItems": 4,
             "maxItems": 4,
         },
-        "text_typed": {"type": ["string", "null"]},
+        "text_typed": {"type": "string", "nullable": True},
         "confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0},
     },
 }
