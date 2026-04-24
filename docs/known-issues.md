@@ -96,3 +96,66 @@ that now guards against regression.
   `apps/synthesis-worker/main.py` (the worker loop) and `apps/api/main.py`
   SSE path are not exercised — both need a real Redis, covered manually by the
   demo script.
+
+
+## Additional fixes from verifier (conformance-report.md) — folded into #12
+
+### Fixed
+
+7. **MAJOR 1: `infra/insforge-pool/schema.sql` was missing** — severity: high
+   - What failed: `infra/insforge-pool/provision.sh:23` references `schema.sql`
+     and warns "WARN: ... not found — skipping seed" when absent. That meant
+     every per-tenant provision ran without schema, so every generated agent's
+     PostgREST endpoint would 404 on first call.
+   - Fix: created `infra/insforge-pool/schema.sql` with DDL for all ten §8 ER
+     tables (`recording`, `synthesis_run`, `dream_queries`, `image`,
+     `slsa_attestation`, `sbom`, `agent`, `agent_memories`,
+     `tinyfish_skills_used`, `agent_runs`). UUID PKs default to
+     `gen_random_uuid()` (pgcrypto), FKs mirror the ER arrows, jsonb columns
+     hold materials/components/topics/entities/result, and `embedding` uses
+     pgvector(1536).
+   - Guard: `tests/test_insforge_schema.py` parses the DDL and asserts table
+     set + required columns per table + FK relationships + UUID-default shape.
+
+8. **MINOR: release.yml attested SBOM as `--type slsaprovenance`** — severity: medium
+   - What failed: `infra/github-actions/release.yml:189-194` ran
+     `cosign attest --predicate sbom.spdx.json --type slsaprovenance`. The
+     `slsaprovenance` attestation has to point at the in-toto provenance JSON
+     that slsa-github-generator produces, not the SPDX SBOM. This would fail
+     `cosign verify-attestation --type slsaprovenance` at agent boot, which is
+     exactly the preboot gate in §13 — every agent would fail to start in prod.
+   - Fix: split into two proper `cosign attest` calls. The SBOM step keeps
+     `--predicate sbom.spdx.json --type spdxjson`. The provenance step now
+     downloads the `*.intoto.jsonl` artifact from the slsa-github-generator job
+     (enabled `upload-assets: true`) and passes that with `--type
+     slsaprovenance`. Also added a `download-artifact` step ahead of it.
+   - Guard: `tests/test_release_workflow.py` asserts exactly 2 attest steps
+     with disjoint types, that slsaprovenance does not use `sbom.spdx.json`,
+     and that the predicate path ends in `intoto.jsonl`.
+
+### Deferred — tracked here, not blocking demo
+
+9. **`vset:global:skills` is a dead key** — severity: low
+   - Declared in architecture.md §9 but no code reads or writes it. Either
+     wire a skill matcher on top of it, or drop the row from §9 to reduce
+     reviewer surface-area confusion. Defer to post-demo cleanup.
+
+10. **`scripts/demo_mode_switch.sh` is a TODO stub** — severity: low
+    - Script exists and `bash -n` parses, but the body doesn't actually flip
+      `DEMO_MODE` between `live` / `replay` / `hybrid`. The demo runbook sets
+      the env var directly, so this is only a polish-item.
+
+11. **`rate:gemini:{model}` key declared but unused at API layer** — severity: low
+    - `understudy/memory/client.py::consume_rate_token` implements the
+      token-bucket against this key, but no middleware calls it. The synthesis
+      worker's GeminiClient does its own retry backoff, so the missing limiter
+      only bites under a pathological Gemini-call storm. Either add an API
+      dependency that calls `consume_rate_token`, or drop the row from §9.
+
+12. **Dream Query has no auto-retry on breaking-change report** — severity: low
+    - §4 describes retrying with a narrower query via 3.1 Pro when
+      `validate_against_live_traffic` reports breaking changes. The current
+      driver (`CosmoDreamQuery.validate_against_live_traffic`) returns the
+      report but doesn't loop. For demo, fixtures return
+      `has_breaking_changes=False`, so this path isn't exercised. Track for
+      a follow-up; not on the demo path.

@@ -128,7 +128,9 @@ jobs:
   slsa-provenance:
     # SLSA L2 generic generator — emits the in-toto provenance predicate for the
     # pushed image digest. L2 (not L3) is intentional; hermetic builder is out
-    # of scope for the hackathon (architecture.md §18 risk #5).
+    # of scope for the hackathon (architecture.md §18 risk #5). The reusable
+    # workflow uploads the predicate as an artifact we pull into attest-and-verify
+    # and feed to `cosign attest --type slsaprovenance`.
     needs: build-sign-push
     permissions:
       id-token: write
@@ -140,6 +142,7 @@ jobs:
       image: ${{ needs.build-sign-push.outputs.image }}
       digest: ${{ needs.build-sign-push.outputs.digest }}
       registry-username: ${{ github.actor }}
+      upload-assets: true
     secrets:
       registry-password: ${{ secrets.GITHUB_TOKEN }}
 
@@ -179,6 +182,16 @@ jobs:
         with:
           name: sbom-${{ github.sha }}
 
+      - name: Download SLSA provenance predicate
+        # slsa-github-generator uploads the in-toto provenance predicate as a
+        # job artifact named "<image>.intoto.jsonl" when `upload-assets: true`.
+        uses: actions/download-artifact@v4
+        with:
+          # Artifact name from slsa-github-generator/generator_container_slsa3.yml.
+          pattern: "*.intoto.jsonl"
+          path: slsa-provenance/
+          merge-multiple: true
+
       - name: Cosign attach SBOM attestation
         run: |
           cosign attest --yes \
@@ -187,9 +200,17 @@ jobs:
             "${IMAGE_WITH_DIGEST}"
 
       - name: Cosign attach SLSA provenance attestation
+        # Provenance predicate comes from the slsa-github-generator job, NOT the
+        # SBOM. Using the SBOM here would fail `cosign verify-attestation
+        # --type slsaprovenance` at boot per §13's preboot gate.
         run: |
+          predicate=$(ls slsa-provenance/*.intoto.jsonl | head -n1)
+          if [[ -z "${predicate}" ]]; then
+            echo "no SLSA provenance predicate found under slsa-provenance/" >&2
+            exit 1
+          fi
           cosign attest --yes \
-            --predicate sbom.spdx.json \
+            --predicate "${predicate}" \
             --type slsaprovenance \
             "${IMAGE_WITH_DIGEST}"
 
