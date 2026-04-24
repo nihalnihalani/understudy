@@ -1,13 +1,63 @@
-# Per-agent Fly.toml template — rendered at synthesis time for every generated agent.
-# Variables: {{ AGENT_ID }}, {{ IMAGE_DIGEST }}, {{ AMS_NAMESPACE }}.
-# See architecture.md §5 (Generated Agent Runtime) and §12 (Deployment).
-app = "understudy-agent-{{ AGENT_ID }}"
-primary_region = "iad"
+# Per-generated-agent Fly.toml — rendered at synthesis time.
+# architecture.md §5 (Generated Agent Runtime), §12 (Deployment).
+#
+# Jinja2 placeholders:
+#   {{ agent_id }}        — uuid of the generated agent (used as app slug)
+#   {{ image_digest }}    — sha256:... of the signed agent image
+#   {{ graphql_port }}    — internal port the agent's GraphQL handler listens on
+#   {{ ams_namespace }}   — Redis Agent Memory Server namespace (ams:agent:{id}:*)
+#   {{ insforge_slot }}   — claimed warm-pool slot (0, 1, or 2)
+#   {{ primary_region }}  — iad or sjc
+#   {{ cosmo_endpoint }}  — federated endpoint for this agent's subgraph
+#
+# The pinned image is referenced by digest, never by tag — digest drift would
+# break cosign verify which gates boot.
+
+app = "understudy-agent-{{ agent_id }}"
+primary_region = "{{ primary_region }}"
 
 [build]
-  image = "ghcr.io/nihalnihalani/understudy-agent-{{ AGENT_ID }}@{{ IMAGE_DIGEST }}"
+  image = "ghcr.io/nihalnihalani/understudy-agent-{{ agent_id }}@{{ image_digest }}"
+
+[deploy]
+  strategy = "rolling"
 
 [env]
-  AMS_NAMESPACE = "{{ AMS_NAMESPACE }}"
+  AGENT_ID = "{{ agent_id }}"
+  AMS_NAMESPACE = "{{ ams_namespace }}"
+  INSFORGE_SLOT = "{{ insforge_slot }}"
+  COSMO_ENDPOINT = "{{ cosmo_endpoint }}"
+  GRAPHQL_PORT = "{{ graphql_port }}"
+  COSIGN_EXPERIMENTAL = "1"
+  COSIGN_CERT_IDENTITY = "https://github.com/nihalnihalani/understudy/.github/workflows/release.yml@refs/heads/main"
+  COSIGN_CERT_OIDC_ISSUER = "https://token.actions.githubusercontent.com"
+  AGENT_IMAGE_REF = "ghcr.io/nihalnihalani/understudy-agent-{{ agent_id }}@{{ image_digest }}"
 
-# TODO(task #9): cosign pre-start hook verifying the pinned image digest.
+[processes]
+  agent = "/usr/local/bin/verify-self.sh python -m apps.agent_template.main"
+
+[[vm]]
+  size = "performance-2x"
+  memory = "2gb"
+
+[[services]]
+  processes = ["agent"]
+  internal_port = {{ graphql_port }}
+  protocol = "tcp"
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+  [[services.http_checks]]
+    interval = "15s"
+    timeout = "5s"
+    grace_period = "20s"
+    method = "POST"
+    path = "/graphql"
+    protocol = "http"
+    [services.http_checks.headers]
+      Content-Type = "application/json"

@@ -1,11 +1,31 @@
-# InsForge 2.0 warm-pool config — 3 pre-provisioned backends for the demo (architecture.md §18 risk #3).
-# Each pool slot carries: Remote OAuth MCP endpoint, PostgREST base URL, Model Gateway fallback routes.
+# InsForge 2.0 warm-pool declaration (architecture.md §18 risk #3).
+# Consumed by infra/insforge-pool/provision.sh.
+#
+# pool_size is intentionally small: 3 slots is enough for the demo. Dynamic
+# pool growth is explicitly out of scope — if a 4th agent is synthesized at
+# demo time it waits for a free slot rather than spin up a new tenant.
 pool_size: 3
+
+# Each backend slot carries:
+#   - Remote OAuth MCP endpoint (no stdio — architecture.md §17 "InsForge transport")
+#   - PostgREST URL over the seeded §8 schema
+#   - Model Gateway fallback routes (Anthropic, Grok — §13 "Gemini 3 rate limit")
+#   - Edge Function slots (populated as agents need them)
 backends:
   - slot: 0
-    status: reserved
-    # TODO(task #5): populate MCP endpoint + OAuth client credentials at provisioning time.
+    label: "understudy-demo-slot-0"
+    status: "reserved"
+    capabilities: ["oauth_mcp", "postgrest", "model_gateway", "edge_functions"]
   - slot: 1
-    status: reserved
+    label: "understudy-demo-slot-1"
+    status: "reserved"
+    capabilities: ["oauth_mcp", "postgrest", "model_gateway", "edge_functions"]
   - slot: 2
-    status: reserved
+    label: "understudy-demo-slot-2"
+    status: "reserved"
+    capabilities: ["oauth_mcp", "postgrest", "model_gateway", "edge_functions"]
+
+# Redis key where the synthesis worker atomically claims a free slot.
+redis:
+  available_set: "insforge:pool:available"
+  assigned_set:  "insforge:pool:assigned"

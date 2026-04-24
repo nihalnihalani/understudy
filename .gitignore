@@ -14,3 +14,11 @@ build/
 # Recordings — ignore all mp4s except the committed demo fixture.
 *.mp4
 !fixtures/demo.mp4
+
+# Sigstore / cosign — prod signing is keyless via Fulcio; local dev keys stay local.
+cosign.key
+cosign.pub
+cosign.*.key
+*.cosign.key
+sbom.spdx.json
+rekor-entry.json

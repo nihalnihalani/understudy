@@ -1,24 +1,77 @@
-# Fly.io Machine manifest for the Understudy synthesis API (architecture.md §12).
-# Generated agents get their own fly.toml rendered per-agent at synthesis time.
+# Fly.io Machine manifest — Understudy synthesis API (architecture.md §12).
+#
+# Two regions (iad + sjc) per §12 deployment diagram. performance-2x VM.
+# Pre-start hook (`verify` process) runs `cosign verify` against the current
+# image — exit non-zero → Fly marks the deploy unhealthy and rolls back.
+#
+# Generated per-agent machines render infra/fly/agent.fly.toml.tmpl, NOT this file.
+
 app = "understudy-synthesis"
 primary_region = "iad"
 
 [build]
-  image = "ghcr.io/nihalnihalani/understudy-synthesis-api:latest"
+  image = "ghcr.io/nihalnihalani/understudy-agent-base:latest"
+
+[deploy]
+  strategy = "rolling"
 
 [env]
   PORT = "8080"
   DEMO_MODE = "live"
+  COSIGN_EXPERIMENTAL = "1"
+  COSIGN_CERT_IDENTITY = "https://github.com/nihalnihalani/understudy/.github/workflows/release.yml@refs/heads/main"
+  COSIGN_CERT_OIDC_ISSUER = "https://token.actions.githubusercontent.com"
+  IMAGE_REF = "ghcr.io/nihalnihalani/understudy-agent-base:latest"
+
+# Two processes: `verify` is the pre-start gate, `api` is the long-running app.
+# Fly's init runs the verify process first via the entrypoint script; if it exits
+# non-zero, the machine never becomes healthy and the release is rejected.
+[processes]
+  api = "/usr/local/bin/fly-start.sh"
+
+[[vm]]
+  size = "performance-2x"
+  memory = "4gb"
+
+# Deploy to two regions (us-east + us-west) per architecture.md §12.
+[[regions]]
+  code = "iad"
+
+[[regions]]
+  code = "sjc"
 
 [[services]]
+  processes = ["api"]
   internal_port = 8080
   protocol = "tcp"
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
   [[services.ports]]
     port = 443
     handlers = ["tls", "http"]
 
-# TODO(task #9): cosign-verify pre-start hook — refuses to boot if SLSA L2 attestation
-# does not validate against Fulcio cert + Rekor log (architecture.md §6, §12).
-# [deploy]
-#   strategy = "rolling"
-#   release_command = "scripts/cosign_verify_prestart.sh"
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+    force_https = true
+
+  # Liveness — app responds on :8080. If verify failed, nothing listens and this
+  # http_check flatlines, Fly marks the machine unhealthy, deploy is rejected.
+  [[services.http_checks]]
+    interval = "15s"
+    timeout = "5s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/healthz"
+    protocol = "http"
+
+  [[services.tcp_checks]]
+    interval = "10s"
+    timeout = "2s"
+    grace_period = "5s"
+
+[metrics]
+  port = 9091
+  path = "/metrics"

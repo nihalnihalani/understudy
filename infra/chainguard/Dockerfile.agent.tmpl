@@ -1,9 +1,57 @@
-# Per-agent Dockerfile template — rendered at synthesis time (architecture.md §6).
-# Every emitted image carries SLSA L2 provenance + build-time SBOM + keyless cosign signature.
-FROM cgr.dev/chainguard/wolfi-base:latest AS agent
+# Per-agent Dockerfile — rendered by the synthesis worker at emit time.
+#
+# Jinja2 placeholders:
+#   {{AGENT_ID}}                  — uuid of the generated agent
+#   {{RUNTIME_MANIFEST_JSON}}     — JSON produced by Gemini 3 Flash (tool surface, redis ns, insforge tables)
+#   {{TINYFISH_SKILLS_PINNED}}    — space-separated "name@version" pairs from skills_pinned[]
+#   {{SIGNED_SDL_HASH}}           — sha256 of the Cosmo Dream Query SDL delta
+#
+# Every rendered Dockerfile inherits the hardened base image (architecture.md §6):
+#   Chainguard wolfi-base → SLSA L2 provenance → build-time Syft SBOM → cosign keyless (Fulcio) → Rekor.
+#
+# The ENTRYPOINT verifier below re-runs `cosign verify` on the agent's OWN image digest
+# before launching the core loop — this implements the §13 "cosign verify fails" row:
+# if the image has drifted, the container refuses to start.
 
-# TODO(task #8): apk add chromium + TinyFish runtime deps.
-# TODO(task #8): COPY synthesized TinyFish script + runtime_manifest.json.
-# TODO(task #8): pin skills_pinned versions during install.
+ARG BASE_DIGEST
+FROM ghcr.io/nihalnihalani/understudy-agent-base@${BASE_DIGEST} AS agent
 
-# SBOM is emitted in-process by the Chainguard builder; no post-build syft step.
+USER root
+
+ARG AGENT_ID={{AGENT_ID}}
+ARG SIGNED_SDL_HASH={{SIGNED_SDL_HASH}}
+
+LABEL org.opencontainers.image.source="https://github.com/nihalnihalani/understudy" \
+      org.opencontainers.image.description="Understudy generated agent {{AGENT_ID}}" \
+      us.agent.id="{{AGENT_ID}}" \
+      us.sdl.sha256="{{SIGNED_SDL_HASH}}"
+
+RUN apk add --no-cache nodejs npm cosign \
+    && npm install -g @tinyfish/cli@^2
+
+RUN for spec in {{TINYFISH_SKILLS_PINNED}}; do \
+      tinyfish skills install "$spec" --pin ; \
+    done
+
+COPY --chown=understudy:understudy agent/script.ts        /agent/script.ts
+COPY --chown=understudy:understudy agent/runtime.json     /agent/runtime.json
+COPY --chown=understudy:understudy agent/subgraph.sdl     /agent/subgraph.sdl
+COPY --chown=understudy:understudy agent/verify-self.sh   /usr/local/bin/verify-self.sh
+RUN chmod +x /usr/local/bin/verify-self.sh
+
+RUN printf '%s' '{{RUNTIME_MANIFEST_JSON}}' > /agent/runtime.manifest.json
+
+USER understudy
+
+ENV AGENT_ID={{AGENT_ID}} \
+    AGENT_SDL_SHA256={{SIGNED_SDL_HASH}} \
+    COSIGN_EXPERIMENTAL=1 \
+    COSIGN_CERT_IDENTITY="https://github.com/nihalnihalani/understudy/.github/workflows/release.yml@refs/heads/main" \
+    COSIGN_CERT_OIDC_ISSUER="https://token.actions.githubusercontent.com"
+
+EXPOSE 8080
+
+# verify-self.sh must exit 0 before the agent core loop starts. On non-zero, the
+# container terminates and Fly / launchd marks the deploy unhealthy.
+ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/verify-self.sh"]
+CMD ["python", "-m", "apps.agent_template.main"]

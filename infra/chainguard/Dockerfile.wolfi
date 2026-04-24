@@ -1,3 +1,63 @@
-# Chainguard wolfi-base — Chromium-compatible, zero-CVE posture (architecture.md §6).
-# TODO(task #8): add apk-add shared libs for headful Chromium + copy TinyFish scaffold.
-FROM cgr.dev/chainguard/wolfi-base:latest
+# Understudy base image (architecture.md §6, §13).
+#
+# wolfi-base is deliberately chosen over pure distroless: TinyFish drives a real
+# Chromium, which needs NSS/ATK/libdrm/mesa shared libs at runtime. Pure distroless
+# silently fails at launch (§13 "Chromium deps on distroless" row). wolfi-base keeps
+# the zero-CVE posture while giving us apk for the shared-lib set.
+#
+# Shipped: Python 3.12, the understudy package, a non-root runtime user, and the
+# Chromium shared-lib floor that TinyFish expects.
+
+ARG WOLFI_TAG=latest
+FROM cgr.dev/chainguard/wolfi-base:${WOLFI_TAG} AS base
+
+USER root
+
+RUN apk update && apk add --no-cache \
+      python-3.12 \
+      py3.12-pip \
+      ca-certificates \
+      tini \
+      curl \
+      nss \
+      atk \
+      libxkbcommon \
+      libdrm \
+      mesa-dri-drivers \
+      glib \
+      dbus-libs \
+      cups-libs \
+      alsa-lib \
+      libxcomposite \
+      libxrandr \
+      libxdamage \
+      libxfixes \
+      pango \
+      cairo \
+      fontconfig \
+      freetype \
+      expat
+
+RUN adduser -D -u 65532 -h /home/understudy understudy \
+    && mkdir -p /app /agent /var/run/understudy \
+    && chown -R understudy:understudy /app /agent /var/run/understudy
+
+WORKDIR /app
+
+COPY --chown=understudy:understudy pyproject.toml README.md /app/
+COPY --chown=understudy:understudy understudy /app/understudy
+COPY --chown=understudy:understudy apps /app/apps
+
+RUN pip install --no-cache-dir --break-system-packages /app
+
+USER understudy
+
+ENV PATH="/home/understudy/.local/bin:${PATH}" \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    UNDERSTUDY_HOME=/home/understudy
+
+EXPOSE 8080
+
+ENTRYPOINT ["/sbin/tini", "--"]
+CMD ["python", "-m", "uvicorn", "apps.api.main:app", "--host", "0.0.0.0", "--port", "8080"]
