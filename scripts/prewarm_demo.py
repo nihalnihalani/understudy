@@ -11,6 +11,7 @@ Run: `python -m scripts.prewarm_demo` or `python scripts/prewarm_demo.py`.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 import time
@@ -38,6 +39,13 @@ _RESET = "\033[0m" if _ISATTY else ""
 DEMO_AGENT = "export-shopify-orders"
 DEMO_SYNTH_ID = "synth-demo-001"
 DEMO_RUN_ID = "run-demo-001"
+
+# Agent identifiers whose Cosmo Connect protocols (graphql / grpc / rest /
+# openapi) get seeded into us:agent:{id}:protocols. The web AgentWall reads
+# these via GET /agents/{id}/protocols. Pre-warming them means the four chips
+# render instantly in DEMO_MODE=replay without waiting for synthesis.
+PROTOCOL_AGENTS: tuple[str, ...] = ("agent_alpha", "agent_beta", "agent_orders_demo")
+PROTOCOL_ROUTER_BASE = "http://localhost:4000"
 
 
 # The 5 prior turns the demo agent should "remember" (architecture.md §15 beat 2:40-2:55).
@@ -173,6 +181,31 @@ def seed_replay(mem: MemoryClient) -> None:
     mem.store_replay(DEMO_SYNTH_ID, DEMO_REPLAY)
 
 
+def seed_protocols(redis: Any) -> int:
+    """Seed `us:agent:{name}:protocols` for the seed agents.
+
+    Mirrors the shape written by apps/synthesis-worker/cosmo_writer.py: a hash
+    with field `endpoints` containing JSON {graphql, grpc, rest, openapi}. The
+    API surfaces these via GET /agents/{agent_id}/protocols, and the AgentWall
+    renders them as four copy-to-clipboard chips per tile. Hermetic-demo:
+    pre-seeded so the four chips appear instantly in DEMO_MODE=replay.
+    """
+    written = 0
+    for agent_name in PROTOCOL_AGENTS:
+        endpoints = {
+            "graphql": f"{PROTOCOL_ROUTER_BASE}/graphql",
+            "grpc": f"{PROTOCOL_ROUTER_BASE}/connect/{agent_name}",
+            "rest": f"{PROTOCOL_ROUTER_BASE}/connect/{agent_name}/json",
+            "openapi": f"{PROTOCOL_ROUTER_BASE}/connect/{agent_name}/openapi.json",
+        }
+        redis.hset(
+            f"us:agent:{agent_name}:protocols",
+            mapping={"endpoints": json.dumps(endpoints)},
+        )
+        written += 1
+    return written
+
+
 # Canned per-stage Gemini responses matching the schemas the worker expects.
 # Keys land at us:replay:synth-demo-001:{action_<i>,intent,script} and are read by
 # `_maybe_replay` in apps/synthesis-worker/gemini_client.py — including the
@@ -260,6 +293,9 @@ def expected_keys(agent: str) -> list[tuple[str, str]]:
     keys.append(("ams_stm", f"ams:agent:{agent}:stm"))
     # AMS vector set (seeded by remember_embedding)
     keys.append(("vset", f"vset:agent:{agent}:memory"))
+    # Cosmo Connect protocol endpoints per seed agent (one hash per agent).
+    for agent_name in PROTOCOL_AGENTS:
+        keys.append(("protocols", f"us:agent:{agent_name}:protocols"))
     return keys
 
 
@@ -307,7 +343,8 @@ def verify(r: Any, agent: str) -> bool:
         f"{counts.get('langcache', 0)} LangCache entries, "
         f"{turns} AMS turns seeded, "
         f"{counts.get('dream', 0)} Dream Query payload, "
-        f"{counts.get('vset', 0)} Vector Set key.{_RESET}"
+        f"{counts.get('vset', 0)} Vector Set key, "
+        f"{counts.get('protocols', 0)} Connect protocol sets.{_RESET}"
     )
     return True
 
@@ -343,6 +380,8 @@ def main() -> int:
         print(f"  - Vector Set: {len(SEED_VECTORS)} memory embeddings")
         print(f"  - dream:{DEMO_RUN_ID}")
         print(f"  - us:replay:{DEMO_SYNTH_ID}")
+        print(f"  - Connect protocols: {len(PROTOCOL_AGENTS)} agents "
+              f"({', '.join(PROTOCOL_AGENTS)})")
         return 0
 
     import redis
@@ -357,6 +396,7 @@ def main() -> int:
     seed_dream(mem)
     seed_replay(mem)
     seed_stage_replays(mem)
+    seed_protocols(r)
     elapsed = (time.perf_counter() - start) * 1000
 
     # Sanity-check the dump — this is the command BizDev runs on stage.
