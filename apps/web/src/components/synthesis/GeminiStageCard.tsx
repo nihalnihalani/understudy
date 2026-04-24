@@ -8,6 +8,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { BorderBeam } from "@/components/ui/border-beam";
 
 export type StageState = "pending" | "streaming" | "done" | "error";
 
@@ -67,6 +68,9 @@ export function GeminiStageCard({
       )}
       aria-label={`${title} stage, ${STATE_LABEL[state]}`}
     >
+      {state === "streaming" && (
+        <BorderBeam size={150} duration={4} delay={0} />
+      )}
       <header className="flex items-start gap-3">
         <StageIcon state={state} />
         <div className="min-w-0 flex-1">

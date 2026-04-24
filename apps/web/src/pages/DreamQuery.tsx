@@ -64,6 +64,9 @@ interface ValidationReport {
   composable: boolean;
 }
 
+import { InteractiveCard } from "@/components/ui/interactive-card";
+import { LushGradient } from "@/components/ui/lush-gradient";
+
 export default function DreamQuery() {
   const { id } = useParams<{ id: string }>();
   const dq = DEMO_DREAM_QUERY;
@@ -126,7 +129,7 @@ export default function DreamQuery() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, delay: 0.1 }}
         >
-          <Card className="rounded-xl border border-white/10 bg-white/5 backdrop-blur-2xl shadow-[0_8px_40px_rgba(0,0,0,0.4)]">
+          <InteractiveCard className="bg-white/5 backdrop-blur-2xl">
             <CardContent className="space-y-3 p-4">
               <header className="flex flex-wrap items-center justify-between gap-2">
                 <div>
@@ -144,7 +147,7 @@ export default function DreamQuery() {
 {dq.desired_operation}
               </pre>
             </CardContent>
-          </Card>
+          </InteractiveCard>
 
           <SdlDiffViewer
             currentSdl={CURRENT_SUPERGRAPH_SDL}
@@ -173,8 +176,8 @@ export default function DreamQuery() {
             ]}
           />
 
-          <Card className="rounded-xl border border-white/10 bg-white/5 backdrop-blur-2xl shadow-[0_8px_40px_rgba(0,0,0,0.4)]">
-            <CardContent className="space-y-3 p-4">
+          <LushGradient className="bg-white/5 backdrop-blur-2xl">
+            <div className="p-4 space-y-3">
               <h3 className="text-[14px] font-semibold text-foreground">
                 Why this matters
               </h3>
@@ -184,7 +187,7 @@ export default function DreamQuery() {
                 synthesizer needs: a new subgraph that composes cleanly with
                 every existing client.
               </p>
-              <Separator />
+              <Separator className="bg-border/20" />
               <dl className="space-y-1.5 font-mono text-[11px]">
                 <DlRow k="composable" v="true" tone="success" />
                 <DlRow
@@ -195,8 +198,8 @@ export default function DreamQuery() {
                 <DlRow k="engine" v="cosmo-router v0.137" />
                 <DlRow k="edfs" v="none" />
               </dl>
-            </CardContent>
-          </Card>
+            </div>
+          </LushGradient>
 
           <Link to="/agents" className="w-full">
             <Button variant="secondary" size="lg" className="w-full group">
@@ -220,7 +223,7 @@ function ResolverStubs({ subgraphId }: { subgraphId: string }) {
     },
   ];
   return (
-    <Card className="rounded-xl border border-white/10 bg-white/5 backdrop-blur-2xl shadow-[0_8px_40px_rgba(0,0,0,0.4)]">
+    <InteractiveCard className="bg-white/5 backdrop-blur-2xl">
       <CardContent className="space-y-3 p-4">
         <header className="flex items-center justify-between">
           <h2 className="text-[14px] font-semibold text-foreground">
@@ -243,7 +246,7 @@ function ResolverStubs({ subgraphId }: { subgraphId: string }) {
           </div>
         ))}
       </CardContent>
-    </Card>
+    </InteractiveCard>
   );
 }
 

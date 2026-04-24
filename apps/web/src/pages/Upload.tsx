@@ -22,6 +22,8 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import type { Agent } from "@/api/types";
+import { Meteors } from "@/components/ui/meteors";
+import { LushGradient } from "@/components/ui/lush-gradient";
 
 export default function Upload() {
   const nav = useNavigate();
@@ -87,67 +89,70 @@ export default function Upload() {
   }, []);
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        eyebrow="0:00 — 0:20 · record"
-        title="Upload a web workflow recording"
-        description="Drop a 60-second capture of the task you want an agent to learn. The synthesis pipeline converts it into a pinned, reproducible script."
-      />
+    <div className="space-y-4 relative overflow-hidden">
+      <Meteors number={20} />
+      <div className="relative z-10">
+        <PageHeader
+          eyebrow="0:00 — 0:20 · record"
+          title="Upload a web workflow recording"
+          description="Drop a 60-second capture of the task you want an agent to learn. The synthesis pipeline converts it into a pinned, reproducible script."
+        />
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <motion.section 
-          className="space-y-4"
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.2, type: "spring", stiffness: 300, damping: 30 }}
-        >
-          {!staged ? (
-            <DropZone
-              onFileSelect={stage}
-              onError={(msg) => {
-                setError(msg);
-                toast.error("Invalid recording", { description: msg });
-              }}
-            />
-          ) : (
-            <UploadProgress
-              staged={staged}
-              progress={progress}
-              uploading={uploading}
-              onCancel={cancel}
-              onStart={startSynthesis}
-            />
-          )}
-
-          {error && (
-            <div
-              role="alert"
-              className={cn(
-                "rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2",
-                "text-[13px] text-destructive"
-              )}
-            >
-              {error}
-            </div>
-          )}
-
-          <motion.div
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_380px] 2xl:grid-cols-[minmax(0,1fr)_420px]">
+          <motion.section
+            className="space-y-3"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.2, type: "spring", stiffness: 300, damping: 30, delay: 0.05 }}
+            transition={{ duration: 0.2, type: "spring", stiffness: 300, damping: 30 }}
           >
-            <PipelinePreview />
-          </motion.div>
-        </motion.section>
+            {!staged ? (
+              <DropZone
+                onFileSelect={stage}
+                onError={(msg) => {
+                  setError(msg);
+                  toast.error("Invalid recording", { description: msg });
+                }}
+              />
+            ) : (
+              <UploadProgress
+                staged={staged}
+                progress={progress}
+                uploading={uploading}
+                onCancel={cancel}
+                onStart={startSynthesis}
+              />
+            )}
 
-        <motion.aside 
-          aria-label="Recent recordings"
-          initial={{ opacity: 0, x: 10 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.2, type: "spring", stiffness: 300, damping: 30, delay: 0.1 }}
-        >
-          <RecentRecordings />
-        </motion.aside>
+            {error && (
+              <div
+                role="alert"
+                className={cn(
+                  "rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2",
+                  "text-[13px] text-destructive"
+                )}
+              >
+                {error}
+              </div>
+            )}
+
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.2, type: "spring", stiffness: 300, damping: 30, delay: 0.05 }}
+            >
+              <PipelinePreview />
+            </motion.div>
+          </motion.section>
+
+          <motion.aside 
+            aria-label="Recent recordings"
+            initial={{ opacity: 0, x: 10 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.2, type: "spring", stiffness: 300, damping: 30, delay: 0.1 }}
+          >
+            <RecentRecordings />
+          </motion.aside>
+        </div>
       </div>
     </div>
   );
@@ -172,41 +177,59 @@ function PipelinePreview() {
     },
   ];
   return (
-    <Card>
-      <CardContent className="p-5">
+    <LushGradient>
+      <div className="p-5">
         <div className="mb-3 flex items-center gap-2">
-          <Sparkles className="size-4 text-primary" />
-          <h3 className="text-[14px] font-semibold text-foreground">
+          <Sparkles className="size-[18px] text-primary" />
+          <h3 className="text-[16px] font-semibold text-foreground">
             What happens next
           </h3>
         </div>
-        <ol className="space-y-3">
+        <motion.ol
+          className="space-y-3"
+          variants={{
+            hidden: { opacity: 0 },
+            show: {
+              opacity: 1,
+              transition: { staggerChildren: 0.1, delayChildren: 0.2 },
+            },
+          }}
+          initial="hidden"
+          animate="show"
+        >
           {stages.map((s, i) => (
-            <li key={s.label} className="flex gap-3">
-              <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border border-border bg-elevated font-mono text-[10px] text-muted-foreground">
+            <motion.li
+              key={s.label}
+              className="flex gap-3"
+              variants={{
+                hidden: { opacity: 0, x: -10 },
+                show: { opacity: 1, x: 0 },
+              }}
+            >
+              <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border border-border bg-elevated font-mono text-[11px] text-muted-foreground">
                 {i + 1}
               </span>
               <div className="min-w-0">
-                <div className="text-[13px] font-medium text-foreground">
+                <div className="text-[14px] font-medium text-foreground">
                   {s.label}
                 </div>
-                <div className="font-mono text-[11px] text-muted-foreground">
+                <div className="font-mono text-[12px] text-muted-foreground">
                   {s.model} · {s.note}
                 </div>
               </div>
-            </li>
+            </motion.li>
           ))}
-        </ol>
+        </motion.ol>
         <Separator className="my-4" />
-        <div className="flex items-start gap-2 font-mono text-[11px] text-muted-foreground">
-          <Info className="mt-0.5 size-3 text-faint" />
+        <div className="flex items-start gap-2 font-mono text-[12px] text-muted-foreground">
+          <Info className="mt-0.5 size-3.5 text-faint" />
           <span>
             60 frames → 8 keyframes via OpenCV scene-change, ~10× token
             reduction before Gemini ever sees the video.
           </span>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </LushGradient>
   );
 }
 
@@ -237,12 +260,12 @@ function RecentRecordings() {
       <CardContent className="p-5">
         <div className="mb-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <FileVideo className="size-4 text-muted-foreground" />
-            <h3 className="text-[14px] font-semibold text-foreground">
+            <FileVideo className="size-[18px] text-muted-foreground" />
+            <h3 className="text-[16px] font-semibold text-foreground">
               Recent recordings
             </h3>
           </div>
-          <Badge variant="outline" className="text-faint">
+          <Badge variant="outline" className="text-faint text-[11px]">
             via /agents
           </Badge>
         </div>
@@ -262,7 +285,7 @@ function RecentRecordings() {
         )}
 
         {agents && agents.length === 0 && (
-          <p className="text-[12px] text-muted-foreground">
+          <p className="text-[13px] text-muted-foreground">
             {err ?? "No recordings yet — drop an .mp4 to get started."}
           </p>
         )}
@@ -283,11 +306,11 @@ function RecentRecordings() {
                     <FileVideo className="size-3.5" />
                   </span>
                   <div className="min-w-0 flex-1">
-                    <div className="truncate font-mono text-[11px] text-foreground">
+                    <div className="truncate font-mono text-[12px] text-foreground">
                       {a.ams_namespace.replace("ams:agent:", "")}
                     </div>
-                    <div className="flex items-center gap-2 font-mono text-[10px] text-muted-foreground">
-                      <Clock className="size-2.5" />
+                    <div className="flex items-center gap-2 font-mono text-[11px] text-muted-foreground">
+                      <Clock className="size-3" />
                       <span className="truncate">
                         {a.graphql_endpoint.replace("https://", "")}
                       </span>
@@ -300,7 +323,7 @@ function RecentRecordings() {
         )}
 
         <Separator className="my-3" />
-        <p className="font-mono text-[10px] leading-[1.5] text-faint">
+        <p className="font-mono text-[11px] leading-[1.5] text-faint">
           TODO: live-wire /recordings endpoint · this list approximates history
           from the agents registry.
         </p>

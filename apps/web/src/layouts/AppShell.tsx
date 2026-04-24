@@ -55,6 +55,9 @@ const NAV: NavItem[] = [
   { to: "/agents", label: "Agents", icon: Sparkles, match: /^\/agents\/?$/ },
 ];
 
+import { BackgroundGlows } from "@/components/ui/background-glows";
+import RetroGrid from "@/components/ui/retro-grid";
+
 export function AppShell() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   useCommandPaletteHotkey(() => setPaletteOpen(true));
@@ -62,9 +65,16 @@ export function AppShell() {
 
   return (
     <TooltipProvider delayDuration={200}>
-      <div className="flex min-h-screen bg-background text-foreground selection:bg-primary/20 selection:text-primary-strong">
+      <div className="flex min-h-screen bg-background text-foreground selection:bg-primary/20 selection:text-primary-strong overflow-hidden relative">
+        <BackgroundGlows />
+        <RetroGrid className="opacity-20" />
+        {/* Grid Background */}
+        <div className="pointer-events-none absolute inset-0 z-0 h-full w-full bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]">
+          <div className="absolute inset-0 bg-radial-[circle_at_center,transparent_0%,hsl(var(--background))_100%]"></div>
+        </div>
+
         <Sidebar onCommandPalette={() => setPaletteOpen(true)} />
-        <div className="flex min-w-0 flex-1 flex-col relative z-0">
+        <div className="flex min-w-0 flex-1 flex-col relative z-10">
           <TopBar />
           <main className="flex-1 overflow-x-hidden relative">
             <AnimatePresence mode="wait">
@@ -74,7 +84,7 @@ export function AppShell() {
                 animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
                 exit={{ opacity: 0, y: -8, filter: "blur(4px)", transition: { duration: 0.15 } }}
                 transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}
-                className="mx-auto w-full max-w-[1400px] px-4 sm:px-6 lg:px-8 py-6"
+                className="w-full px-6 lg:px-10 xl:px-12 pt-3 pb-4"
               >
                 <Outlet />
               </motion.div>
@@ -175,20 +185,28 @@ function NavItemLink({ item }: { item: NavItem }) {
         return (
           <>
             {active && (
-              <motion.div
-                layoutId="nav-indicator"
-                className="absolute left-0 h-5 w-0.5 rounded-r-full bg-primary"
-                transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                aria-hidden
-              />
+              <>
+                <motion.div
+                  layoutId="nav-indicator"
+                  className="absolute left-0 h-5 w-0.5 rounded-r-full bg-primary z-20"
+                  transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                  aria-hidden
+                />
+                <motion.div
+                  layoutId="nav-glow"
+                  className="absolute inset-0 z-0 bg-primary/5 blur-md rounded-md"
+                  transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                  aria-hidden
+                />
+              </>
             )}
             <item.icon
               className={cn(
-                "size-4 shrink-0 transition-colors duration-fast",
+                "relative z-10 size-4 shrink-0 transition-colors duration-fast",
                 active ? "text-primary" : "text-faint group-hover:text-muted-foreground"
               )}
             />
-            {item.label}
+            <span className="relative z-10">{item.label}</span>
           </>
         );
       }}
@@ -200,7 +218,7 @@ function TopBar() {
   return (
     <header
       className={cn(
-        "sticky top-0 z-20 flex h-14 shrink-0 items-center gap-6 border-b border-border bg-background/60 px-4 sm:px-6 lg:px-8 backdrop-blur-md"
+        "sticky top-0 z-20 flex h-14 shrink-0 items-center gap-6 border-b border-border bg-background/60 px-6 lg:px-10 xl:px-12 backdrop-blur-md"
       )}
     >
       <Breadcrumbs />
@@ -214,7 +232,7 @@ function TopBar() {
 function Footer() {
   return (
     <footer className="h-10 shrink-0 border-t border-border bg-surface">
-      <div className="mx-auto flex h-full max-w-[1400px] items-center justify-between px-4 sm:px-6 lg:px-8 font-mono text-[10px] text-faint">
+      <div className="flex h-full items-center justify-between px-6 lg:px-10 xl:px-12 font-mono text-[10px] text-faint">
         <span>pipeline · flash-lite → 3.1 pro → 3 flash</span>
         <span>SLSA L2 · cosign · Fulcio · Rekor</span>
         <span>apps/web · vite</span>
@@ -222,6 +240,8 @@ function Footer() {
     </footer>
   );
 }
+
+import { ShinyText } from "@/components/ui/shiny-text";
 
 export function PageHeader({
   eyebrow,
@@ -235,18 +255,18 @@ export function PageHeader({
   actions?: React.ReactNode;
 }) {
   return (
-    <div className="mb-6 flex items-start justify-between gap-6">
+    <div className="mb-4 flex items-start justify-between gap-6">
       <div className="min-w-0">
         {eyebrow && (
-          <div className="mb-1.5 font-mono text-[10px] uppercase tracking-wider text-faint">
+          <div className="mb-1.5 font-mono text-[11px] uppercase tracking-wider text-faint">
             {eyebrow}
           </div>
         )}
-        <h1 className="text-[22px] font-semibold leading-tight tracking-tight text-foreground">
-          {title}
+        <h1 className="text-[26px] font-semibold leading-tight tracking-tight text-foreground">
+          <ShinyText>{title}</ShinyText>
         </h1>
         {description && (
-          <p className="mt-1 max-w-[68ch] text-[13px] text-muted-foreground">
+          <p className="mt-1.5 max-w-[68ch] text-[14px] text-muted-foreground">
             {description}
           </p>
         )}

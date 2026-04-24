@@ -249,6 +249,10 @@ export default function AgentWall() {
   );
 }
 
+import { NumberTicker } from "@/components/common/NumberTicker";
+
+import { BorderBeam } from "@/components/ui/border-beam";
+
 function SummaryCard({
   label,
   value,
@@ -262,24 +266,47 @@ function SummaryCard({
   tone?: "success" | "accent";
   fixture?: boolean;
 }) {
+  // Parse numeric part of value for ticker if possible
+  const numericMatch = value.match(/(\d+(\.\d+)?)/);
+  const numericValue = numericMatch ? parseFloat(numericMatch[0]) : null;
+  const suffix = numericMatch ? value.replace(numericMatch[0], "") : value;
+
   return (
     <div
       data-demo={fixture ? "fixture" : undefined}
-      className="rounded-lg border border-border bg-surface p-4"
+      className="rounded-xl border border-border bg-surface/50 p-4 relative overflow-hidden backdrop-blur-sm"
     >
-      <div className="font-mono text-[10px] uppercase tracking-wider text-faint">
+      {tone && (
+        <BorderBeam 
+          size={120} 
+          duration={8} 
+          colorFrom={tone === "success" ? "hsl(var(--success))" : "hsl(var(--accent))"}
+          colorTo={tone === "success" ? "hsl(var(--success) / 0.5)" : "hsl(var(--accent) / 0.5)"}
+        />
+      )}
+      <div className="font-mono text-[10px] uppercase tracking-wider text-faint relative z-10">
         {label}
       </div>
       <div
         className={cn(
-          "mt-1 flex items-baseline gap-2 font-mono text-[24px] font-semibold tabular-nums leading-none",
+          "mt-1 flex items-baseline gap-1 font-mono text-[24px] font-semibold tabular-nums leading-none relative z-10",
           tone === "success" && "text-success",
           tone === "accent" && "text-accent",
           !tone && "text-foreground"
         )}
       >
-        {value}
-        {tone === "success" && <ShieldCheck className="size-4" />}
+        {numericValue !== null ? (
+          <>
+            <NumberTicker 
+              value={numericValue} 
+              decimalPlaces={value.includes(".") ? 1 : 0} 
+            />
+            {suffix && <span className="text-[14px] font-medium ml-0.5">{suffix}</span>}
+          </>
+        ) : (
+          value
+        )}
+        {tone === "success" && <ShieldCheck className="size-4 ml-1" />}
       </div>
       {caption && (
         <div className="mt-1 font-mono text-[10px] text-muted-foreground">

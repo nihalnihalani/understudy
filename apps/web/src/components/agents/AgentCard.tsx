@@ -1,5 +1,6 @@
-import { forwardRef, useCallback } from "react";
-import type { KeyboardEvent } from "react";
+import { forwardRef, useCallback, useRef } from "react";
+import type { KeyboardEvent, MouseEvent } from "react";
+import { motion, useMotionTemplate, useSpring } from "framer-motion";
 import { ShieldCheck, Brain, PlayCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { truncateDigest, relativeTime } from "@/lib/format";
@@ -43,6 +44,16 @@ export const AgentCard = forwardRef<HTMLDivElement, AgentCardProps>(
       agent.graphql_endpoint.replace(/^https?:\/\//, "").split("/")[0] ??
       "agent.fly.dev";
 
+    // Spotlight effect
+    const mouseX = useSpring(0, { stiffness: 500, damping: 100 });
+    const mouseY = useSpring(0, { stiffness: 500, damping: 100 });
+
+    function handleMouseMove({ currentTarget, clientX, clientY }: MouseEvent) {
+      const { left, top } = currentTarget.getBoundingClientRect();
+      mouseX.set(clientX - left);
+      mouseY.set(clientY - top);
+    }
+
     const handleKey = useCallback(
       (e: KeyboardEvent<HTMLDivElement>) => {
         if (e.key === "Enter" || e.key === " ") {
@@ -54,23 +65,39 @@ export const AgentCard = forwardRef<HTMLDivElement, AgentCardProps>(
     );
 
     return (
-      <div
-        ref={ref}
+      <motion.div
+        ref={ref as any}
         role="button"
         tabIndex={0}
         aria-pressed={selected}
         aria-label={`Agent ${agent.id.slice(0, 6)} · ${extras.subgraph_id}`}
         onClick={onOpen}
         onKeyDown={handleKey}
+        onMouseMove={handleMouseMove}
+        whileHover={{ scale: 1.01 }}
+        whileTap={{ scale: 0.99 }}
         className={cn(
-          "group relative flex h-full flex-col gap-3 rounded-xl border bg-white/5 p-4 backdrop-blur-xl",
-        "transition-all duration-500 ease-out",
-        "hover:scale-[1.02] hover:border-white/20 hover:bg-white/10 hover:shadow-[0_8px_30px_rgba(0,0,0,0.5)]",
-          "focus-visible:outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring",
-          selected ? "border-primary/50 ring-1 ring-primary/40 shadow-[0_0_30px_hsl(var(--primary)/0.2)] bg-primary/5" : "border-white/10"
+          "group relative flex h-full flex-col gap-3 rounded-xl border bg-card p-4 shadow-sm overflow-hidden",
+          "transition-all duration-300 ease-out",
+          "hover:shadow-md hover:border-border-strong",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          selected ? "border-primary ring-1 ring-primary shadow-md bg-primary/5" : "border-border"
         )}
       >
-        <header className="flex items-start justify-between gap-2">
+        <motion.div
+          className="pointer-events-none absolute -inset-px rounded-xl opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+          style={{
+            background: useMotionTemplate`
+              radial-gradient(
+                350px circle at ${mouseX}px ${mouseY}px,
+                hsl(var(--primary) / 0.08),
+                transparent 80%
+              )
+            `,
+          }}
+        />
+
+        <header className="relative z-10 flex items-start justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2.5">
             <Monogram id={agent.id} state={state} />
             <div className="min-w-0">
@@ -88,7 +115,7 @@ export const AgentCard = forwardRef<HTMLDivElement, AgentCardProps>(
           <SignedBadge verified={extras.verified} />
         </header>
 
-        <section className="flex flex-col gap-1.5">
+        <section className="relative z-10 flex flex-col gap-1.5">
           <InlineCopy
             prefix="img"
             value={truncateDigest(agent.image_digest, 12, 6)}
@@ -104,7 +131,7 @@ export const AgentCard = forwardRef<HTMLDivElement, AgentCardProps>(
           </div>
         </section>
 
-        <div className="mt-auto grid grid-cols-[1fr_auto] items-end gap-3">
+        <div className="relative z-10 mt-auto grid grid-cols-[1fr_auto] items-end gap-3">
           <div className="flex flex-col gap-0.5">
             <div className="font-mono text-[9px] uppercase tracking-wider text-faint">
               runs · last 24
@@ -130,7 +157,7 @@ export const AgentCard = forwardRef<HTMLDivElement, AgentCardProps>(
 
         <footer
           className={cn(
-            "flex items-center justify-between border-t border-border pt-2",
+            "relative z-10 flex items-center justify-between border-t border-border pt-2",
             "opacity-0 transition-opacity duration-fast",
             "group-hover:opacity-100 group-focus-within:opacity-100",
             selected && "opacity-100"
@@ -166,7 +193,7 @@ export const AgentCard = forwardRef<HTMLDivElement, AgentCardProps>(
             />
           </div>
         </footer>
-      </div>
+      </motion.div>
     );
   }
 );

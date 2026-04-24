@@ -46,6 +46,11 @@
   --destructive: 0 84% 60%;          /* #EF4444 */
   --destructive-foreground: 0 0% 100%;
 
+  /* brand colors for gradients */
+  --brand-indigo: 239 84% 67%;
+  --brand-purple: 271 91% 65%;
+  --brand-pink: 330 81% 60%;
+
   /* chart palette */
   --chart-1: 217 91% 60%;   /* Blue */
   --chart-2: 286 65% 58%;   /* Purple */

@@ -25,6 +25,8 @@ import type { ApiFullAttestation } from "@/api/types";
 import { DEMO_ATTESTATION } from "@/fixtures/demo";
 import { truncateDigest } from "@/lib/format";
 
+import { Confetti } from "@/components/ui/confetti";
+
 export default function SupplyChain() {
   const { id } = useParams<{ id: string }>();
   const { data, isLoading, error } = useQuery({
@@ -73,6 +75,7 @@ export default function SupplyChain() {
 
   return (
     <div className="space-y-6">
+      <Confetti active={verified} />
       <PageHeader
         eyebrow={`agents / agent-${agent.id.slice(0, 6)}`}
         title="Supply chain receipt"
