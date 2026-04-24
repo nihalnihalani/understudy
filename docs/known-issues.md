@@ -12,10 +12,9 @@ values). The vars below need to be appended manually or by tester-debugger.
 Referenced by `apps/cosmo-router/config.yaml`, `docker-compose.yml`, and
 `scripts/register_agent_subgraph.sh` via `${VAR}` substitution.
 
-InsForge OAuth MCP (bearer-token auth):
-- `INSFORGE_OAUTH_JWKS_URL`
-- `INSFORGE_OAUTH_ISSUER`
-- `INSFORGE_OAUTH_AUDIENCE`
+InsForge 2.0 (API-key auth — `INSFORGE_OAUTH_*` is obsolete):
+- `INSFORGE_PROJECT_URL` — project base URL
+- `INSFORGE_API_KEY` — admin bearer token for `POST /api/database/records/…`
 
 EDFS Kafka provider:
 - `EDFS_KAFKA_BROKERS`

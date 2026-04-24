@@ -139,7 +139,7 @@ async def healthz(redis: RedisClient = Depends(get_redis)) -> HealthResponse:
         ),
         cosmo_probe,
         _probe_env("chainguard", "GHCR_TOKEN", "cosign/Fulcio/Rekor configured"),
-        _probe_env("insforge", "INSFORGE_OAUTH_CLIENT_ID", "Remote OAuth MCP configured"),
+        _probe_env("insforge", "INSFORGE_API_KEY", "InsForge 2.0 API key configured"),
         _probe_env("tinyfish", "TINYFISH_API_KEY", "CLI + Agent Skills configured"),
     ]
     return HealthResponse(status="ok", demo_mode=_demo_mode(), services=probes)

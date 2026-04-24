@@ -28,9 +28,6 @@ services:
       # Supergraph polling + auth + EDFS — consumed via ${VAR} substitution
       # in config.yaml. Sourced from the root .env file below.
       - REDIS_URL=redis://redis:6379/1
-      - INSFORGE_OAUTH_JWKS_URL=${INSFORGE_OAUTH_JWKS_URL}
-      - INSFORGE_OAUTH_ISSUER=${INSFORGE_OAUTH_ISSUER}
-      - INSFORGE_OAUTH_AUDIENCE=${INSFORGE_OAUTH_AUDIENCE}
       - EDFS_KAFKA_BROKERS=${EDFS_KAFKA_BROKERS}
       - EDFS_KAFKA_SASL_USERNAME=${EDFS_KAFKA_SASL_USERNAME}
       - EDFS_KAFKA_SASL_PASSWORD=${EDFS_KAFKA_SASL_PASSWORD}
