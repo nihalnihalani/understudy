@@ -139,6 +139,19 @@ export interface ReplayResponse {
   payload: Record<string, unknown>;
 }
 
+// GET /agents/{id}/protocols — Cosmo Connect surface for the agent's
+// federated subgraph. Backed by Trusted Documents pushed by the synthesis
+// worker. Mirror of apps/api/schemas.py::AgentProtocols.
+export interface AgentProtocols {
+  agent_id: string;
+  endpoints: {
+    graphql: string;
+    grpc: string;
+    rest: string;
+    openapi: string;
+  };
+}
+
 // GET /agents/{id}/attestation — backend-provided bundle (apps/api/schemas.py).
 // Every field the Supply Chain page renders as a governance receipt lives
 // here — no client-side derivation. `cert_not_*` and `rekor_integrated_time`
