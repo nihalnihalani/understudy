@@ -9,6 +9,10 @@ export interface TinyFishRunOpts {
   skill: SkillPin;
   scriptPath: string;
   inputs?: Record<string, unknown>;
+  // Additional context (e.g. recalled memories from the Vector Set) passed to the
+  // TinyFish process as JSON via the UNDERSTUDY_CONTEXT env var — the script can
+  // `JSON.parse(process.env.UNDERSTUDY_CONTEXT ?? "{}")` and reason over it.
+  context?: Record<string, unknown>;
   cwd?: string;
   binary?: string;
   timeoutMs?: number;
@@ -46,10 +50,14 @@ export async function runTinyFish(opts: TinyFishRunOpts): Promise<TinyFishRunRes
   const argv = buildArgv(opts);
   const binary = opts.binary ?? process.env.TINYFISH_BIN ?? "tinyfish";
   const cwd = opts.cwd ?? path.dirname(opts.scriptPath);
+  const env: Record<string, string> = { ...(process.env as Record<string, string>) };
+  if (opts.context && Object.keys(opts.context).length > 0) {
+    env.UNDERSTUDY_CONTEXT = JSON.stringify(opts.context);
+  }
   const { stdout } = await execa(binary, argv, {
     cwd,
     timeout: opts.timeoutMs ?? 60_000,
-    env: { ...process.env },
+    env,
   });
   let parsed: unknown = stdout;
   try {
