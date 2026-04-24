@@ -11,9 +11,9 @@ build/
 .vercel
 .fly/
 
-# Recordings — ignore all mp4s except the committed demo fixture.
+# Recordings — ignore all mp4s except the committed demo fixtures.
 *.mp4
-!fixtures/demo.mp4
+!fixtures/mp4/*.mp4
 
 # Sigstore / cosign — prod signing is keyless via Fulcio; local dev keys stay local.
 cosign.key
