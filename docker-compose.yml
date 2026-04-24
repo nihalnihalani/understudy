@@ -40,6 +40,9 @@ services:
     volumes:
       - ./apps/cosmo-router/config.yaml:/etc/cosmo-router/config.yaml:ro
       - ./apps/cosmo-router/supergraph.json:/etc/cosmo-router/supergraph.json:ro
+      # Trusted Documents pushed by the synthesis worker; consumed by the
+      # `connect:` block in config.yaml to serve gRPC/REST/OpenAPI per agent.
+      - ./apps/cosmo-router/operations:/etc/cosmo-router/operations:ro
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:4000/health"]
       interval: 10s

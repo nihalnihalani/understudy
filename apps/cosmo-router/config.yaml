@@ -91,6 +91,24 @@ engine:
   execution_plan_cache_size: 1024
   websocket_client_poll_timeout: "1s"
 
+# --- Connect (multi-protocol surface) -----------------------------------
+# Exposes every agent's federated graph as gRPC, JSON+REST, and OpenAPI in
+# addition to GraphQL — driven by Trusted Documents pushed by the
+# synthesis worker (apps/synthesis-worker/cosmo_writer.py).
+#
+# Schema reference: https://cosmo-docs.wundergraph.com/connect/overview
+# Field names follow the documented schema; if the live router rejects a
+# key (older Cosmo Router versions may use different names), adjust to the
+# router's startup error and keep the protocols list intact.
+connect:
+  enabled: true
+  listen_path: "/connect"
+  operations_dir: "/etc/cosmo-router/operations"
+  protocols:
+    grpc: true
+    json: true
+    openapi: true
+
 # --- Cache (shared Redis for query-plan + APQ) --------------------------
 # Uses the same Redis instance as AMS (architecture.md §9) but a distinct
 # logical db to avoid keyspace collisions.
