@@ -16,6 +16,7 @@ Boot: `python -m uvicorn apps.api.main:app --reload` from repo root.
 from __future__ import annotations
 
 import os
+import json
 import time
 from collections.abc import AsyncIterator
 from datetime import datetime, timezone
@@ -226,6 +227,26 @@ async def get_synthesis(
                 data=entry.get("data"),
             )
         )
+    for event in reversed(trace):
+        if event.stage == "status" and isinstance(event.data, dict):
+            status_value = event.data.get("status")
+            if status_value in {status.value for status in SynthesisStatus}:
+                run.status = SynthesisStatus(status_value)
+                break
+    result = await redis.get_synthesis_result(id)
+    if result is not None:
+        actions = result.get("actions")
+        intent = result.get("intent")
+        bundle = result.get("bundle")
+        if actions is not None:
+            run.gemini_lite_trace = "\n".join(json.dumps(action) for action in actions)
+        if intent is not None:
+            run.intent_abstraction = intent
+            run.gemini_pro_trace = json.dumps(intent, indent=2)
+        if bundle is not None:
+            script = bundle.get("script")
+            if isinstance(script, str):
+                run.gemini_flash_trace = script
     return SynthesisRunDetail(run=run, trace=trace)
 
 

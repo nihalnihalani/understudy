@@ -75,6 +75,8 @@ INTENT_ABSTRACTION_OUTPUT_SCHEMA: dict[str, Any] = {
 # --- (c) Script Emission — Gemini 3 Flash tool declaration --------------------------
 SCRIPT_EMISSION_SYSTEM = (
     "You emit production-grade TinyFish CLI TypeScript for the given intent spec.\n"
+    "Use the current npm package scope `@tiny-fish/*` (for example `@tiny-fish/sdk`), "
+    "not the obsolete `@tinyfish/*` scope.\n"
     "Call `emit_tinyfish_script` exactly once with the script, Cosmo SDL, runtime\n"
     "manifest, and pinned TinyFish Skills. Prefer Skill primitives over inline\n"
     "selectors; TinyFish resolves selector_hint → accessibility tree at runtime."
@@ -107,6 +109,7 @@ EMIT_TINYFISH_SCRIPT_TOOL: dict[str, Any] = {
                             "tinyfish_products": {
                                 "type": "array",
                                 "items": {
+                                    "type": "string",
                                     "enum": [
                                         "web_agent",
                                         "web_search",

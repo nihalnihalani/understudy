@@ -174,6 +174,7 @@ async def _process_job(
     # either field so the API/worker contract isn't brittle to which side renames.
     synth_id = fields.get("synth_id") or fields["run_id"]
     log.info("processing synth_id=%s msg=%s", synth_id, msg_id)
+    await _write_trace(redis, synth_id, "status", {"status": "running"})
     await _write_trace(redis, synth_id, "stage_started", {"stage": "keyframes"})
 
     recording_bytes = await _load_recording(fields["recording_uri"])
@@ -198,6 +199,7 @@ async def _process_job(
     # the SynthesisResult is already in Redis as primary truth.
     await asyncio.to_thread(_persist_artifacts, writer, result)
     await _write_trace(redis, synth_id, "pipeline_completed", {"script_chars": len(result.bundle.script)})
+    await _write_trace(redis, synth_id, "status", {"status": "completed"})
     await redis.xack(JOBS_STREAM, CONSUMER_GROUP, msg_id)
 
 
@@ -251,12 +253,16 @@ async def run_worker() -> None:
         except (NotImplementedError, RuntimeError):
             signal.signal(sig, _handle_stop)
 
+    # Track whether to look for own-pending vs new messages this iteration.
+    # On boot (and after errors) we sweep id='0' to recover anything a previous
+    # instance left in our PEL, then switch to '>' for new arrivals.
+    next_id = "0"
     while not stop_event.is_set():
         try:
             entries = await redis.xreadgroup(
                 CONSUMER_GROUP,
                 CONSUMER_NAME,
-                streams={JOBS_STREAM: ">"},
+                streams={JOBS_STREAM: next_id},
                 count=1,
                 block=2000,
             )
@@ -266,14 +272,34 @@ async def run_worker() -> None:
             continue
 
         if not entries:
+            # Nothing pending in our PEL → switch to new messages.
+            next_id = ">"
             continue
 
+        any_messages = False
         for _stream, messages in entries:
             for msg_id, fields in messages:
+                any_messages = True
+                log.info("dispatch msg=%s fields_keys=%s", msg_id, list(fields.keys()))
                 try:
                     await _process_job(redis, gemini, writer, msg_id, fields)
                 except Exception:
                     log.exception("job failed msg=%s", msg_id)
+                    synth_id = fields.get("synth_id") or fields.get("run_id")
+                    if synth_id:
+                        try:
+                            await _write_trace(redis, synth_id, "status", {"status": "failed"})
+                        except Exception:
+                            log.exception("failed to write failed status msg=%s", msg_id)
+                    # Ack on hard failure so we don't stall on a poison message;
+                    # the trace stream already records the failure for inspection.
+                    try:
+                        await redis.xack(JOBS_STREAM, CONSUMER_GROUP, msg_id)
+                    except Exception:
+                        log.exception("xack-on-error failed msg=%s", msg_id)
+
+        if not any_messages:
+            next_id = ">"
 
     log.info("synthesis-worker shutting down")
     writer.close()
