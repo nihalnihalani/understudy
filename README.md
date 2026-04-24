@@ -1,143 +1,214 @@
 # Understudy
 
-> *Show it once. Understudy takes over.*
+### Record once. Ship a signed agent.
 
-A meta-agentic platform: record a 60-second screen capture of a web workflow, and Understudy synthesizes a production-ready signed deployed web agent — with a typed GraphQL API, persistent memory, and SLSA L2 supply-chain receipts. Built for the **Ship to Prod — Agentic Engineering Hackathon** (April 2026).
+Understudy turns any 60-second screen recording into a signed, production-deployed web agent with a typed federated GraphQL API and persistent memory — no code, no prompts. Show it once, ship it forever.
 
----
-
-## Built with April 2026's Latest
-
-Understudy is built on technology that did not exist in March 2026:
-
-| Sponsor | Shipped in April 2026 | Where it lives in Understudy |
-|---|---|---|
-| **Gemini** | 3 Flash (Apr 22), 3.1 Pro, 3.1 Flash-Lite, `thinking_level` API, multimodal fn responses | Three-stage synthesis brain |
-| **TinyFish** | CLI + Agent Skill System (2× vs MCP), 4-product platform | Generated agent runtime; browser sessions on TinyFish hosted cloud |
-| **Wundergraph** | **Cosmo Dream Query**, EDFS Kafka/NATS, MCP Gateway, `schema_change_proposal_workflow`, live-traffic schema validation | Schema synthesizer — literally the core loop |
-| **Chainguard** | SLSA Build Level 2 provenance, build-time SBOM, Sigstore cosign + Fulcio + Rekor | Every generated agent image |
-| **InsForge 2.0** | Remote OAuth MCP, Model Gateway, Agent Skills, Edge Function Editor (Apr 1), editable auth emails (Apr 7), VS Code extension | Generated agent backends + inference fallback |
-| **Redis 8** | Vector Sets int8 (75% less memory), LangCache, Agent Memory Server (short + long term with auto extraction), RedisVL, Google ADK bridge | Per-agent memory + semantic cache |
+**Submission for [Ship to Prod — Agentic Engineering Hackathon](https://ship-to-prod.devpost.com/?_gl=1*9v07ap*_gcl_au*MTAwODYwMDg1MS4xNzcwNDIzNzE0*_ga*NzA2NzU0OTgxLjE3NjI2NDc1ODY.*_ga_0YHJK3Y10M*czE3NzcwNzI5MzIkbzM5MSRnMSR0MTc3NzA3MzY5MCRqNTYkbDAkaDA.) | San Francisco, April 2026**
 
 ---
 
-## Problem
+## The Problem
 
-Building a production web agent takes a team of engineers 1-2 weeks — even with Browser-Use, Stagehand, OpenAI Operator, or Gemini Computer-Use. Teams know the workflow they want automated but can't hand it to an agent without writing code, provisioning infra, hardening containers, and wiring memory. Meanwhile the "agentic browser" space is crowded at the consumer layer and thin at the enterprise layer, where **governance + supply chain + memory** matter more than novelty.
+**Agent creation for enterprises is heavily bottlenecked.** When a team wants to automate a weekly CSV export or multi-tab reconciliation:
 
-## Solution
-
-Understudy watches you do a web workflow once, in 60 seconds, and ships you a signed, typed, deployed agent with persistent memory. **Three Gemini models** do the heavy lifting, each where it's objectively best: Gemini 3.1 Flash-Lite for frame-level action detection (multimodal), Gemini 3.1 Pro for intent abstraction, and **Gemini 3 Flash for script emission (78% SWE-bench — the best coder in the family)**. **Cosmo Dream Query** generates the subgraph SDL from the agent's desired query. **Chainguard** signs everything with SLSA L2 provenance. **InsForge 2.0** auto-provisions the backend over OAuth MCP. **Redis 8 Agent Memory Server** remembers. An agent that builds agents.
-
-**One-line demo:** *"Record yourself doing it once. Understudy takes over the role."* → 60s recording → ~90s synthesis → autonomous signed agent deployed + federated GraphQL endpoint.
-
----
-
-## Why It Wins
-
-1. **Meta-agentic, not agentic.** Understudy generates agents. The deliverable of a 60s recording is a running, signed, federated web agent — not a chatbot.
-2. **Cosmo Dream Query is the perfect fit.** Our synthesizer already knows what the agent wants to query; it does not know how the schema must change. Dream Query answers exactly that question. No other team will use this primitive as natively.
-3. **Three-model Gemini pipeline.** We use each model for what it is objectively best at — 3 Flash's 78% SWE-bench score lands on the one task where accuracy compounds: code emission.
-4. **Supply chain the judges can verify on stage.** Live `cosign verify` + `cosign verify-attestation --type slsaprovenance` on a freshly synthesized agent, anchored in Rekor.
-5. **Generated agents ship with real memory.** Not chat history — Agent Memory Server namespaces with auto topic/entity extraction and int8 Vector Set recall, per agent.
-6. **Hundreds of agents per Fly.io host.** Int8 Vector Sets + Chainguard slim images + InsForge Remote MCP pooling = dense deployment on a single Fly.io Machine.
-7. **Every sponsor's April-2026 feature lights up.** See the prize-stacking table below.
-
-| Sponsor prize | How Understudy earns it |
+| Pain Point | Impact |
 |---|---|
-| **TinyFish 1st** — 4× Mac Mini + $300 credits + **$2M Accelerator Golden Ticket** | Generated agents are TinyFish CLI + Skill-pinned scripts running on TinyFish's hosted browser cloud; 2× task completion vs MCP |
-| **Wundergraph 1st** — $2,000 cash | **Cosmo Dream Query** used exactly as intended — every new agent's subgraph SDL comes from Dream Query; EDFS optional for event fields |
-| **Chainguard** — $1,000 cash | Every agent image has SLSA L2 provenance predicate + build-time SBOM + keyless cosign via Fulcio + Rekor transparency log |
-| **InsForge 1st** — $1,000 cash | **Remote OAuth MCP** (no stdio), Agent Skills, Model Gateway fallback, PostgREST auto-API, Edge Function Editor |
-| **Redis — Best Agent** — AirPods Pro + 10k credits + hoodies | **Vector Sets int8** (75% memory) + **LangCache** + **Agent Memory Server** (auto topic/entity) — three brand-new agentic features |
-| **Guild — Most Innovative** — $1,000 Visa | Meta-agentic = innovation bullseye. Agents that build agents with signed receipts |
+| **High Friction** | Building a web agent takes 1-2 weeks of engineering time even with modern browser-use frameworks. |
+| **Missing Primitives** | The bottleneck isn't the model—it's the glue: typed APIs, schema synthesis, and persistent memory are hard to wire up. |
+| **Zero Governance** | Enterprises won't run agents that lack a verifiable supply chain or deployment guardrails. |
+| **Consumer Focus** | The current agentic space is crowded with chat-based consumer wrappers rather than enterprise-grade pipelines. |
 
-**Expected stack: ~$5,000 cash + 4× Mac Mini + AirPods Pro + hoodies + $2M Accelerator Golden Ticket.**
+**The result:** Tedious, repetitive workflows remain manual because the overhead of building a secure, governable agent is too high.
+
+---
+
+## The Solution
+
+**Understudy** replaces the entire manual agent-building lifecycle. It acts as a meta-agentic platform that watches you perform a workflow once and synthesizes a production-ready, signed web agent in ~90 seconds.
+
+### The "Record Once" Story
+
+> It's Monday morning. Your ops team needs a weekly script to filter orders and export a CSV from a clunky SaaS dashboard.
+>
+> You hit record and perform the workflow in your browser for 60 seconds.
+>
+> Understudy takes the video. A multimodal model detects the exact UI actions. A reasoning model abstracts the intent. A coding model emits a production-ready agent script.
+>
+> Understudy then dynamically generates the GraphQL schema delta using Cosmo Dream Query and validates it against live traffic. 
+> 
+> The script is bundled into a Chainguard image, securely signed with a build-time SBOM and an SLSA L2 provenance predicate via Fulcio and Rekor. It deploys to Fly.io, where the pre-start hook cryptographically verifies the signature before booting.
+>
+> **Total time: ~90 seconds.** Your team now has a federated, signed agent backing a typed API endpoint, complete with Redis memory.
+
+---
+
+## Multimodal Pipeline Showcase
+
+Understudy orchestrates a complex, three-stage AI pipeline and multiple enterprise infrastructure tools to synthesize agents securely:
+
+| Role | Technology | What It Does |
+|---|---|---|
+| **Action Detection** | Gemini 3.1 Flash-Lite | Extracts 5-8 scene-change keyframes and uses multimodal function responses to detect UI events and clicks (~10× token reduction vs raw video). |
+| **Intent Abstraction** | Gemini 3.1 Pro | Uses `thinking_level: high` to lift raw clicks into an abstracted goal, step invariants, and a target I/O schema. |
+| **Script Emission** | Gemini 3 Flash | The best coder in the family (78% SWE-bench) emits the target TinyFish script and GraphQL query shape at low latency and cost. |
+| **Schema Synthesis** | Wundergraph Cosmo | Dream Query inverts schema design: we pass the desired GraphQL operation, and it emits the SDL delta needed to serve it. |
+| **Agentic Runtime** | TinyFish | Executes generated agents on a hosted browser cloud, achieving 2× task completion rates compared to standard MCP setups. |
+| **Supply Chain** | Chainguard / Sigstore | Builds `wolfi-base` images with SLSA L2 provenance, signed keyless via cosign + Fulcio, and anchored in Rekor. |
+| **Backend & Pool** | InsForge 2.0 | Provides a Remote OAuth MCP backend and warm-pool slot for every generated agent, complete with a Model Gateway for fallback inference. |
+| **Agent Memory** | Redis 8 | Powers the Agent Memory Server (AMS), LangCache (semantic response caching), and int8 Vector Sets for per-agent recall. |
+
+---
+
+## Architecture
+
+```mermaid
+graph TB
+    subgraph Input["User Input"]
+        Rec["60s Screen Recording (.mp4)"]
+    end
+
+    subgraph Pipeline["Three-Gemini Synthesis Pipeline"]
+        Act["Gemini 3.1 Flash-Lite<br/>(Action Detection)"]
+        Int["Gemini 3.1 Pro<br/>(Intent Abstraction)"]
+        Scr["Gemini 3 Flash<br/>(Script Emission)"]
+    end
+
+    subgraph Schema["Schema Synthesis"]
+        Cosmo["Wundergraph Cosmo<br/>Dream Query + Router"]
+    end
+
+    subgraph Build["Supply Chain & Build"]
+        Chain["Chainguard wolfi-base"]
+        Sig["Sigstore (cosign, Fulcio, Rekor)<br/>SLSA L2 + SBOM"]
+    end
+
+    subgraph Runtime["Agent Runtime & Storage"]
+        Fly["Fly.io Machines<br/>(Pre-start cosign verify)"]
+        Tiny["TinyFish Hosted Cloud<br/>(Browser Execution)"]
+        Ins["InsForge 2.0<br/>(Remote OAuth MCP)"]
+        Red["Redis 8<br/>(AMS, Vector Sets int8, LangCache)"]
+    end
+
+    Rec -->|"Keyframes"| Act
+    Act -->|"UI Events"| Int
+    Int -->|"Abstract Intent"| Scr
+    Scr -->|"Agent Script + Target Query"| Cosmo
+    Cosmo -->|"Subgraph SDL"| Chain
+    Chain -->|"Image Build"| Sig
+    Sig -->|"Signed Image"| Fly
+    Fly -->|"Deploy"| Tiny
+    Fly <-->|"Memory I/O"| Red
+    Fly <-->|"Data Storage"| Ins
+
+    style Input fill:#1e1b4b,stroke:#4f46e5,color:#e0e7ff
+    style Pipeline fill:#0f172a,stroke:#3ecf8e,color:#e0e7ff
+    style Schema fill:#1a1a2e,stroke:#eb5424,color:#e0e7ff
+    style Build fill:#2d1b2e,stroke:#4285F4,color:#e0e7ff
+    style Runtime fill:#1c1c1c,stroke:#a8b1ff,color:#e0e7ff
+```
+
+### Synthesis Core Loop
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant G as Gemini Pipeline
+    participant C as Cosmo Dream Query
+    participant S as Supply Chain (Chainguard/Sigstore)
+    participant F as Fly.io & TinyFish
+    participant R as Redis 8 & InsForge
+
+    U->>G: Upload 60s Recording
+    G->>G: Action Detection (Flash-Lite)
+    G->>G: Intent Abstraction (Pro)
+    G->>C: Emit Script & Desired Query Shape (Flash)
+    C-->>G: Subgraph SDL + Live-traffic validation
+    G->>S: Render Dockerfile
+    S->>S: Build SLSA L2 SBOM + Keyless Sign (Fulcio/Rekor)
+    S-->>F: Push Signed Image
+    F->>F: Fly.io pre-start hook runs `cosign verify`
+    F->>R: Provision AMS namespace + LangCache
+    F->>U: Ready: Federated Endpoint Live!
+```
+
+---
+
+## Creative Sponsor Tool Usage
+
+We explicitly avoided basic "checkbox" integrations. Every tool is load-bearing and creatively deployed to solve a hard enterprise problem:
+
+| Tool | Basic Use (What we DIDN'T do) | Our Creative Use (What we DID) |
+|---|---|---|
+| **Wundergraph Cosmo** | Merely routing standard GraphQL | **Schema Synthesis Inversion**: Using Dream Query to actively *synthesize* the subgraph SDL from the agent's desired target shape. |
+| **Chainguard** | Just using a base image | Implementing a **cryptographic boot refusal** pipeline. Fly.io pre-start hooks verify the SLSA L2 provenance and Rekor inclusion *before* the agent is allowed to boot. |
+| **Redis 8** | Simple key-value caching | Implementing **int8 Vector Sets** (saving 75% memory with 99%+ recall) and an **Agent Memory Server** that automatically extracts topics/entities into short and long-term memory streams. |
+| **TinyFish** | A simple local browser agent | Compiling the output natively into a **TinyFish CLI script** and executing it strictly on TinyFish's hosted browser cloud, treating the browser as remote infrastructure. |
+| **InsForge 2.0** | Basic Postgres queries | Using **Remote OAuth MCP** to entirely bypass stdio friction, plus leveraging the **Model Gateway** as an automatic inference fallback for the Gemini synthesis pipeline. |
+| **Gemini 3/3.1** | Passing the entire video to one huge model | A highly optimized **Three-Headed Brain**: Flash-Lite for keyframe actions, Pro for deep intent reasoning, and Flash for SWE-bench-grade script emission. |
 
 ---
 
 ## Tech Stack
 
-| Layer | Technology | April 2026 feature |
-|---|---|---|
-| **Action detection (vision)** | Gemini 3.1 Flash-Lite | Multimodal function responses, frame-level events |
-| **Intent abstraction** | Gemini 3.1 Pro | `thinking_level: high` for deep reasoning |
-| **Script emission** | **Gemini 3 Flash** | 78% SWE-bench Verified, $0.50/$3 per 1M, multimodal |
-| **Schema synthesis** | Wundergraph Cosmo MCP | **Dream Query**, EDFS, `schema_change_proposal_workflow`, live-traffic validation |
-| **Target runtime** | TinyFish | **CLI + Agent Skill System** (2× vs MCP), all 4 products under one API key |
-| **Backend (per agent)** | InsForge 2.0 | **Remote OAuth MCP**, Model Gateway, PostgREST, Edge Functions, Agent Skills |
-| **Memory** | Redis 8 | **Vector Sets int8** + **LangCache** + **Agent Memory Server** (auto extraction) |
-| **Supply chain** | Chainguard | `wolfi-base`, **SLSA L2 provenance**, build-time SBOM, Sigstore cosign + Fulcio + Rekor |
-| **Runtime** | Fly.io Machines | cosign-verify pre-start hook on every boot; browser sessions delegated to TinyFish hosted cloud |
-| **CI** | GitHub Actions | Keyless Fulcio OIDC signing; SLSA L2 attestation |
-
-See [architecture.md](./architecture.md) for full diagrams (component, synthesis pipeline, Dream Query interaction, generated agent runtime, supply chain, ER data model, deployment), Redis keyspace design, Gemini 3 prompt chains + tool schemas, the "Why Gemini 3 Flash writes the scripts" rationale, and failure-mode analysis.
+| Component | Technology |
+|---|---|
+| **API & Orchestration** | Python 3.11, FastAPI |
+| **Synthesis Pipeline** | Gemini 3.1 Flash-Lite, Gemini 3.1 Pro, Gemini 3 Flash, `google-genai` |
+| **Schema & Federation** | Wundergraph Cosmo, Dream Query, EDFS |
+| **Agentic Runtime** | TinyFish CLI, Agent Skills |
+| **Supply Chain & Security** | Chainguard `wolfi-base`, cosign, Fulcio, Rekor, SLSA L2 |
+| **Backend & Fallback** | InsForge 2.0 Remote OAuth MCP, Model Gateway |
+| **Memory & Caching** | Redis 8 (AMS, Vector Sets int8, LangCache) |
+| **Deployment** | Fly.io Machines, GitHub Actions |
+| **Frontend Dashboard** | TypeScript, Vite, React, shadcn/ui |
 
 ---
 
-## Demo Theater (3 min)
+## Quick Start
 
-1. **0:00-0:20** Hook + record live: open demo SaaS, filter orders, export CSV (60s)
-2. **0:20-0:40** Gemini 3.1 Flash-Lite detects UI events per keyframe (multimodal fn response)
-3. **0:40-1:00** Gemini 3.1 Pro abstracts intent (`thinking_level: high`)
-4. **1:00-1:20** Gemini 3 Flash emits the script (SWE-bench 78%)
-5. **1:20-1:40** Cosmo **Dream Query** generates the subgraph SDL live + live-traffic validator passes
-6. **1:40-2:00** Chainguard builds + SLSA L2 attests + cosign signs via Fulcio → `cosign verify` runs live
-7. **2:00-2:15** Deploy: federated endpoint blinks live
-8. **2:15-2:30** Hit endpoint: agent runs via TinyFish CLI; TinyFish hosted browser session streamed on-screen; InsForge + Redis AMS fill live
-9. **2:30-2:40** Repeat query → Redis **LangCache** hit <50ms
-10. **2:40-2:55** Related query → Agent Memory Server Vector Set recall
-11. **2:55-3:00** Wall of 10 synthesized agents — *"The agent that builds agents."*
-
----
-
-## Quickstart (for teammates)
-
-> **TL;DR — one command:**
-> ```bash
-> ./run.sh             # dev mode: foreground, tails logs, ctrl-c to stop everything
-> ./run.sh --replay    # hermetic DEMO_MODE=replay (no live Gemini calls needed)
-> ./run.sh status      # show what's up + tail recent logs
-> ./run.sh stop        # kill anything run.sh started
-> ./run.sh logs api    # tail -f logs/api.log  (or web | worker)
-> ```
-> The launcher does preflight (python 3.11+, node 20+, `.env` + `GEMINI_API_KEY`),
-> idempotent installs (pip + npm), starts Redis (via brew or docker fallback),
-> and brings up the API (`:8080`), synthesis worker, and Vite dev server (`:5173`)
-> with health probes on each. State lives in `.runsh-state`; logs in `logs/`.
-
-> **Python install (manual path).** A virtualenv is recommended:
-> `python3 -m venv .venv && source .venv/bin/activate && pip install -e '.[dev]'`.
-> If you skip the venv on a managed Python (Homebrew / Debian PEP-668),
-> the laptop fallback is `pip install -e '.[dev]' --break-system-packages`.
-> The Chainguard wolfi-base Dockerfile uses the same flag because its
-> system Python is "managed."
-
-> **Pinning policy.** `[project] dependencies` are runtime-only — anything
-> imported by `apps/`, `understudy/`, or `scripts/` at runtime. Test-only,
-> lint, and template-rendering libs (`pytest`, `pytest-asyncio`, `ruff`,
-> `mypy`, `fakeredis`, `jinja2`, `jsonschema`) live in
-> `[project.optional-dependencies].dev` so prod images stay minimal.
-> Versions use `>=` lower bounds (no upper caps) for hackathon
-> reproducibility while still letting bug-fix releases through.
+### 1. Setup Environment
 
 ```bash
-# 1. Clone + install
 git clone https://github.com/nihalnihalani/understudy
 cd understudy
-cp .env.example .env   # fill Gemini, TinyFish, InsForge, Redis, Chainguard registry, GH token
+cp .env.example .env
+```
 
-# 2. Install TinyFish CLI + Agent Skills
+Fill in your `.env` file with the necessary credentials:
+```bash
+GEMINI_API_KEY=             # Gemini 3 / 3.1 API key
+TINYFISH_API_KEY=           # TinyFish CLI + Agent Skills
+INSFORGE_URL=               # InsForge OSS Host
+INSFORGE_API_KEY=           # InsForge Bearer token
+REDIS_URL=redis://localhost:6379
+COSMO_ROUTER_URL=http://localhost:4000
+DEMO_MODE=live              # live | replay | hybrid
+```
+
+### 2. Install Dependencies
+
+Install the CLI and Python/Node requirements:
+```bash
 npm install -g @tinyfish/cli
 tinyfish skills install web-workflow-pack
+make install
+```
 
-# 3. Local dev (requires Docker + Chainguard wolfi-base)
-docker compose up    # synthesis API + cosmo-router + redis 8 + warm InsForge pool
+### 3. Run the Stack Locally
 
-# 4. Pre-warm the demo (run the night before)
-python scripts/prewarm_demo.py   # seeds LangCache, AMS, Vector Sets, Dream Query cache
+```bash
+# Start redis + cosmo-router + insforge stub
+make docker-up
 
-# 5. Verify the signed production image with SLSA L2 provenance
+# Start the API, Synthesis Worker, and Web UI
+make dev
+```
+
+### 4. Supply Chain Verification
+
+Verify the signed production image with SLSA L2 provenance locally:
+```bash
 cosign verify \
   --certificate-identity "https://github.com/nihalnihalani/understudy/.github/workflows/release.yml@refs/heads/main" \
   --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
@@ -147,64 +218,21 @@ cosign verify-attestation \
   --type slsaprovenance \
   --certificate-identity "..." --certificate-oidc-issuer "..." \
   ghcr.io/nihalnihalani/understudy-agent-base:latest
+```
 
-# 6. Run a synthesis
+### 5. Trigger a Synthesis
+
+```bash
 curl -X POST http://localhost:8080/synthesize \
-  -F recording=@demo-workflow.mp4
+  -F recording=@fixtures/demo-workflow.mp4
 ```
-
----
-
-## Repo Structure
-
-```
-understudy/
-├── README.md                         # this file
-├── architecture.md                   # full system architecture + diagrams (v2)
-├── apps/
-│   ├── api/                          # FastAPI ingest + synthesis orchestration
-│   ├── synthesis-worker/             # 3-Gemini pipeline (keyframe → action → intent → script)
-│   ├── cosmo-mcp-driver/             # headless wrapper around Cosmo MCP CLI (Dream Query + proposal)
-│   ├── agent-template/               # base TinyFish CLI scaffold generated agents extend
-│   └── cosmo-router/                 # federation gateway for all generated agents
-├── infra/
-│   ├── fly/                          # Fly.io Machine manifests with cosign pre-start hook
-│   ├── chainguard/                   # Dockerfile.wolfi + per-agent build template + SLSA L2 config
-│   ├── insforge-pool/                # warm-pool provisioning scripts
-│   └── github-actions/               # CI: build base image, SLSA L2 attest, Fulcio sign, Rekor log, push
-├── scripts/
-│   ├── prewarm_demo.py
-│   ├── demo_mode_switch.sh
-│   └── record_sample.sh
-└── docs/
-    ├── demo-runbook.md
-    └── gemini-prompts/
-        ├── action_detection_flash_lite.md
-        ├── intent_abstraction_pro.md
-        └── script_emission_flash.md
-```
-
----
-
-## Team
-
-Per Gary Chan's *How to Win a Hackathon* framework: no BizDev presenter = no win.
-
-- **Systems hacker** — Chainguard wolfi-base + SLSA L2 + cosign Fulcio + Fly.io Machines + OCI registry
-- **Full-stack** — Synthesis pipeline + 3-Gemini chain + Cosmo Dream Query driver + InsForge 2.0 Remote MCP + Redis 8 (AMS + Vector Sets + LangCache)
-- **Frontend/design** — Upload UI + synthesis HUD + agent dashboard + Cosmo Studio embed + SLSA attestation viewer
-- **BizDev/presenter** — Validation interviews (hours 1-4), demo recording, live pitch, Q&A on model choice + supply chain
-
----
-
-## Credits
-
-Built for **Ship to Prod — Agentic Engineering Hackathon**, April 2026.
-
-Strategy reference: [Gary-Yau Chan, *How to Win a Hackathon*](https://growthwithgary.com/).
 
 ---
 
 ## License
 
 MIT
+
+---
+
+**Understudy** — Built for the Ship to Prod Agentic Engineering Hackathon in San Francisco, April 2026.
