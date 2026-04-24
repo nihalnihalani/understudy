@@ -9,23 +9,9 @@ The on-stage script for the 3-minute pitch. Beat-by-beat timing lives in archite
 3. Record `fixtures/demo.mp4` via `scripts/record_sample.sh` (60s Shopify orders filter + CSV export).
 4. Flip `DEMO_MODE` to `hybrid` (live for first 8s, replay after) — architecture.md §14.
 
-## Pre-pitch (T-5m)
-
-1. **Verify prewarm.** Run `python scripts/prewarm_demo.py --check` against the
-   production Redis. Exits 0 with a green `DEMO READY` summary when every
-   expected key exists (replay, LangCache, AMS turns, Dream Query, Vector Set).
-   Exits 1 with a red list of missing keys if prewarm didn't run or was partial —
-   in that case rerun `python scripts/prewarm_demo.py` before walking on.
-2. (Optional, cost) Pre-warm the stage Fly agent by rendering
-   `infra/fly/agent.fly.toml.tmpl` with `pre_warm=true` for the demo agent
-   (sets `min_machines_running=1`). See `infra/fly/README.md` for the cost
-   trade-off.
-
 ## On-stage cues
 
-See architecture.md §15 for the minute-by-minute table. Kill-switch:
-`scripts/demo_mode_switch.sh replay` flips DEMO_MODE on Fly.io, the Mac Mini
-launchd daemon, and the local Docker Compose stack in one command.
+See architecture.md §15 for the minute-by-minute table. Kill-switch: `scripts/demo_mode_switch.sh replay` flips to pure replay instantly.
 
 ## Owner task
 

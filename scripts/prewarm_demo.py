@@ -23,16 +23,8 @@ if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 from understudy.memory.client import MemoryClient  # noqa: E402
-from understudy.memory.langcache import LangCache, prompt_hash  # noqa: E402
+from understudy.memory.langcache import LangCache  # noqa: E402
 from understudy.memory.schema import MemoryTurn  # noqa: E402
-
-
-# --- ANSI color helpers (no deps) --------------------------------------------
-_ISATTY = sys.stdout.isatty()
-_RED = "\033[31m" if _ISATTY else ""
-_GREEN = "\033[32m" if _ISATTY else ""
-_YELLOW = "\033[33m" if _ISATTY else ""
-_RESET = "\033[0m" if _ISATTY else ""
 
 
 DEMO_AGENT = "export-shopify-orders"
@@ -173,80 +165,6 @@ def seed_replay(mem: MemoryClient) -> None:
     mem.store_replay(DEMO_SYNTH_ID, DEMO_REPLAY)
 
 
-def expected_keys(agent: str) -> list[tuple[str, str]]:
-    """Every key prewarm writes, labelled by category. Used by verify() / --check mode.
-
-    Returns a list of (category, key) pairs. Category is a human-readable tag —
-    the verification summary counts per category so the operator sees
-    "N replay, M LangCache, K AMS" at a glance.
-    """
-    keys: list[tuple[str, str]] = []
-    # replay payload
-    keys.append(("replay", f"us:replay:{DEMO_SYNTH_ID}"))
-    # dream query payload
-    keys.append(("dream", f"dream:{DEMO_RUN_ID}"))
-    # per-agent LangCache entries (prompt-hash keyed)
-    for prompt, model, _response in CANNED_GEMINI:
-        h = prompt_hash(prompt, model)
-        keys.append(("langcache", f"langcache:gemini:{agent}:{h}"))
-    # LangCache config for the agent
-    keys.append(("langcache_config", f"langcache:config:{agent}"))
-    # AMS short-term Stream (entries seeded by record_turn)
-    keys.append(("ams_stm", f"ams:agent:{agent}:stm"))
-    # AMS vector set (seeded by remember_embedding)
-    keys.append(("vset", f"vset:agent:{agent}:memory"))
-    return keys
-
-
-def verify(r: Any, agent: str) -> bool:
-    """Run EXISTS on every key prewarm just wrote. Prints a colored summary.
-
-    Returns True when every key is present, False otherwise. T-minus-5 pre-pitch
-    check: `python scripts/prewarm_demo.py --check` (see docs/demo-runbook.md).
-    """
-    keys = expected_keys(agent)
-    missing: list[tuple[str, str]] = []
-    counts: dict[str, int] = {}
-    for category, key in keys:
-        try:
-            present = bool(r.exists(key))
-        except Exception as exc:  # pragma: no cover — shouldn't happen in practice
-            print(f"{_RED}[prewarm:verify] EXISTS {key} raised: {exc}{_RESET}")
-            missing.append((category, key))
-            continue
-        if not present:
-            missing.append((category, key))
-        else:
-            counts[category] = counts.get(category, 0) + 1
-
-    if missing:
-        print(f"{_RED}[prewarm:verify] MISSING {len(missing)} key(s):{_RESET}")
-        for category, key in missing:
-            print(f"{_RED}  - [{category}] {key}{_RESET}")
-        print(
-            f"{_RED}[prewarm:verify] DEMO NOT READY — rerun `python scripts/prewarm_demo.py` "
-            f"before the pitch.{_RESET}"
-        )
-        return False
-
-    # AMS turn count — useful stage-side signal; best-effort.
-    turns = 0
-    try:
-        turns = int(r.xlen(f"ams:agent:{agent}:stm") or 0)
-    except Exception:
-        turns = 0
-
-    print(
-        f"{_GREEN}[prewarm:verify] DEMO READY — "
-        f"{counts.get('replay', 0)} replay keys, "
-        f"{counts.get('langcache', 0)} LangCache entries, "
-        f"{turns} AMS turns seeded, "
-        f"{counts.get('dream', 0)} Dream Query payload, "
-        f"{counts.get('vset', 0)} Vector Set key.{_RESET}"
-    )
-    return True
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -255,22 +173,9 @@ def main() -> int:
     )
     parser.add_argument("--agent", default=DEMO_AGENT)
     parser.add_argument("--dry-run", action="store_true", help="Print plan, do not write.")
-    parser.add_argument(
-        "--check",
-        action="store_true",
-        help="Verify prewarm keys exist; do not seed. Exit 1 if any key is missing.",
-    )
     args = parser.parse_args()
 
     print(f"[prewarm] redis={args.redis_url} agent={args.agent}")
-
-    if args.check:
-        # T-minus-5 pre-pitch verification — no writes.
-        import redis
-
-        r = redis.Redis.from_url(args.redis_url)
-        return 0 if verify(r, args.agent) else 1
-
     if args.dry_run:
         print("[prewarm] DRY RUN — would seed:")
         print(f"  - AMS: {len(SEED_TURNS)} turns")
@@ -302,10 +207,7 @@ def main() -> int:
         f"{len(dump['entities'])} entities, "
         f"{dump['vector_count']} vectors"
     )
-
-    # Final verification block — EXISTS on every key we just wrote.
-    ok = verify(r, args.agent)
-    return 0 if ok else 1
+    return 0
 
 
 if __name__ == "__main__":

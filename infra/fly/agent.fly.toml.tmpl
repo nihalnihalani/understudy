@@ -9,11 +9,6 @@
 #   {{ insforge_slot }}   — claimed warm-pool slot (0, 1, or 2)
 #   {{ primary_region }}  — iad or sjc
 #   {{ cosmo_endpoint }}  — federated endpoint for this agent's subgraph
-#   {{ pre_warm }}        — bool (default false). When true, keeps one machine hot
-#                           (min_machines_running=1, auto_stop_machines=off) to
-#                           guarantee sub-second cold start. Demo agents only —
-#                           normal synthesized agents should keep this false to
-#                           stay cost-efficient.
 #
 # The pinned image is referenced by digest, never by tag — digest drift would
 # break cosign verify which gates boot.
@@ -49,9 +44,9 @@ primary_region = "{{ primary_region }}"
   processes = ["agent"]
   internal_port = {{ graphql_port }}
   protocol = "tcp"
-  auto_stop_machines = {% if pre_warm|default(false) %}"off"{% else %}true{% endif %}
+  auto_stop_machines = true
   auto_start_machines = true
-  min_machines_running = {% if pre_warm|default(false) %}1{% else %}0{% endif %}
+  min_machines_running = 0
 
   [[services.ports]]
     port = 443

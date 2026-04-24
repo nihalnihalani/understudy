@@ -1,3 +1,0 @@
-[console_scripts]
-understudy-cosmo-driver = understudy.bin:cosmo_driver_main
-understudy-synthesis-worker = understudy.bin:synthesis_worker_main
