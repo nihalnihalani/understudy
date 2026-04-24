@@ -40,6 +40,9 @@ pip.conf
 !.npmrc.example
 chainguard-setup.md
 
+# Local debug logs from scripts/dev-debug.sh
+logs/
+
 # InsForge & AI agent skills — local caches only; committed config under
 # .claude/{agents,settings.json,skills} stays tracked.
 .insforge

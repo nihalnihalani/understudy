@@ -1,4 +1,4 @@
-.PHONY: help install install-py install-web dev api worker web test test-py typecheck lint clean redis docker-up docker-down chainguard-init
+.PHONY: help install install-py install-web dev debug traces api worker web test test-py typecheck lint clean redis docker-up docker-down chainguard-init
 
 PY ?= python3
 PIP ?= $(PY) -m pip
@@ -29,6 +29,12 @@ web: ## Run Vite dev server on :5173
 
 dev: ## Start Redis + API + Worker + Web together (blocks; ctrl-c stops all)
 	@$(MAKE) -j4 redis api worker web
+
+debug: ## Start api+worker+web+Redis trace tail with DEBUG logs, tee'd to logs/
+	./scripts/dev-debug.sh
+
+traces: ## Just tail every run:synth:* Redis stream (no services)
+	./scripts/tail-traces.sh
 
 test: test-py ## Run all tests
 

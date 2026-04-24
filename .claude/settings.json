@@ -1,18 +1,24 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
   "permissions": {
-    "deny": [],
+    "deny": [
+      "Edit(**/.env.production)",
+      "Edit(**/.env.prod)",
+      "Write(**/.env.production)",
+      "Write(**/.env.prod)"
+    ],
     "allow": [
+      "Edit(**/.env)",
+      "Write(**/.env)",
+      "Edit(**/.env.*)",
+      "Write(**/.env.*)",
+      "Edit(**/.env.local)",
+      "Write(**/.env.local)",
       "Edit(**/.env.example)",
       "Write(**/.env.example)",
-      "Edit(.env)",
-      "Edit(.env.*)",
-      "Write(.env)",
-      "Write(.env.*)",
-      "Edit(**/.env)",
-      "Edit(**/.env.*)",
-      "Write(**/.env)",
-      "Write(**/.env.*)",
       "Bash(make:*)",
       "Bash(pytest:*)",
       "Bash(ruff:*)",
@@ -21,6 +27,17 @@
     ]
   },
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=\"$(jq -r '.tool_input.file_path // empty' <<<\"$CLAUDE_TOOL_INPUT\")\"; case \"$f\" in */understudy/models.py) exit 0 ;; esac; c=\"$(jq -r '[.tool_input.new_string, .tool_input.content, (.tool_input.edits // [] | map(.new_string))] | flatten | map(select(. != null)) | join(\"\\n\")' <<<\"$CLAUDE_TOOL_INPUT\")\"; if printf '%s' \"$c\" | grep -Eq 'gemini-3(\\.1)?-(flash|pro|flash-lite)'; then echo \"blocked: gemini-3* model IDs must only live in understudy/models.py (CLAUDE.md invariant). File: $f\" >&2; exit 2; fi; exit 0"
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Edit|Write|MultiEdit",
@@ -36,7 +53,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "f=\"$(jq -r '.tool_input.file_path // empty' <<<\"$CLAUDE_TOOL_INPUT\")\"; case \"$f\" in *.ts|*.tsx) cd \"$(dirname \"$f\")\" && (cd /Users/alhinai/Desktop/understudy/apps/web && npx --no-install tsc --noEmit) >/dev/null 2>&1 ;; esac; exit 0"
+            "command": "f=\"$(jq -r '.tool_input.file_path // empty' <<<\"$CLAUDE_TOOL_INPUT\")\"; case \"$f\" in *.ts|*.tsx) (cd \"$CLAUDE_PROJECT_DIR/apps/web\" && npx --no-install tsc --noEmit) >/dev/null 2>&1 ;; esac; exit 0"
           }
         ]
       }
