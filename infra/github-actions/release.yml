@@ -78,8 +78,30 @@ jobs:
           echo "tag_sha=${image_ref}:${GITHUB_SHA}" >>"$GITHUB_OUTPUT"
           echo "tag_latest=${image_ref}:latest" >>"$GITHUB_OUTPUT"
 
+      - id: libs
+        name: Compute pip index URL (Chainguard Libraries if secrets set)
+        # If CHAINGUARD_PYTHON_USERNAME + CHAINGUARD_PYTHON_PASSWORD secrets are
+        # present, the image pulls deps from Chainguard's malware-resistant
+        # rebuilt-from-source PyPI mirror (docs/chainguard-libraries.md).
+        # Otherwise (fork PRs, first-time runs) we fall back to public PyPI with
+        # a CI warning — the Dockerfile default works either way.
+        env:
+          CG_USER: ${{ secrets.CHAINGUARD_PYTHON_USERNAME }}
+          CG_PASS: ${{ secrets.CHAINGUARD_PYTHON_PASSWORD }}
+        run: |
+          if [[ -n "${CG_USER}" && -n "${CG_PASS}" ]]; then
+            echo "::add-mask::${CG_PASS}"
+            echo "index_url=https://${CG_USER}:${CG_PASS}@libraries.cgr.dev/python/simple" >>"$GITHUB_OUTPUT"
+            echo "mode=chainguard-libraries" >>"$GITHUB_OUTPUT"
+            echo "Using Chainguard Libraries (malware-resistant rebuilt-from-source PyPI mirror)."
+          else
+            echo "index_url=https://pypi.org/simple" >>"$GITHUB_OUTPUT"
+            echo "mode=public-pypi" >>"$GITHUB_OUTPUT"
+            echo "::warning::CHAINGUARD_PYTHON_USERNAME/PASSWORD not set — falling back to public PyPI. See docs/chainguard-libraries.md to enable."
+          fi
+
       - id: build
-        name: Build image (Chainguard wolfi-base)
+        name: Build image (Chainguard wolfi-base + Chainguard Libraries)
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -88,6 +110,10 @@ jobs:
           load: true
           sbom: true           # build-time SBOM emitted in-process by BuildKit
           provenance: mode=max # SLSA provenance attestation via BuildKit
+          # build-args are automatically masked when they contain a masked secret.
+          build-args: |
+            PIP_INDEX_URL=${{ steps.libs.outputs.index_url }}
+            PIP_EXTRA_INDEX_URL=https://pypi.org/simple
           tags: |
             ${{ steps.meta.outputs.tag_sha }}
             ${{ steps.meta.outputs.tag_latest }}

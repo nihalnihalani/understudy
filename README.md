@@ -13,7 +13,7 @@ Understudy is built on technology that did not exist in March 2026:
 | Sponsor | Shipped in April 2026 | Where it lives in Understudy |
 |---|---|---|
 | **Gemini** | 3 Flash (Apr 22), 3.1 Pro, 3.1 Flash-Lite, `thinking_level` API, multimodal fn responses | Three-stage synthesis brain |
-| **TinyFish** | CLI + Agent Skill System (2× vs MCP), 4-product platform | Generated agent runtime on Mac Mini pool |
+| **TinyFish** | CLI + Agent Skill System (2× vs MCP), 4-product platform | Generated agent runtime; browser sessions on TinyFish hosted cloud |
 | **Wundergraph** | **Cosmo Dream Query**, EDFS Kafka/NATS, MCP Gateway, `schema_change_proposal_workflow`, live-traffic schema validation | Schema synthesizer — literally the core loop |
 | **Chainguard** | SLSA Build Level 2 provenance, build-time SBOM, Sigstore cosign + Fulcio + Rekor | Every generated agent image |
 | **InsForge 2.0** | Remote OAuth MCP, Model Gateway, Agent Skills, Edge Function Editor (Apr 1), editable auth emails (Apr 7), VS Code extension | Generated agent backends + inference fallback |
@@ -40,12 +40,12 @@ Understudy watches you do a web workflow once, in 60 seconds, and ships you a si
 3. **Three-model Gemini pipeline.** We use each model for what it is objectively best at — 3 Flash's 78% SWE-bench score lands on the one task where accuracy compounds: code emission.
 4. **Supply chain the judges can verify on stage.** Live `cosign verify` + `cosign verify-attestation --type slsaprovenance` on a freshly synthesized agent, anchored in Rekor.
 5. **Generated agents ship with real memory.** Not chat history — Agent Memory Server namespaces with auto topic/entity extraction and int8 Vector Set recall, per agent.
-6. **Hundreds of agents on one Mac Mini.** Int8 Vector Sets + Chainguard slim images + InsForge Remote MCP pooling = dense deployment on the TinyFish Mac Mini.
+6. **Hundreds of agents per Fly.io host.** Int8 Vector Sets + Chainguard slim images + InsForge Remote MCP pooling = dense deployment on a single Fly.io Machine.
 7. **Every sponsor's April-2026 feature lights up.** See the prize-stacking table below.
 
 | Sponsor prize | How Understudy earns it |
 |---|---|
-| **TinyFish 1st** — 4× Mac Mini + $300 credits + **$2M Accelerator Golden Ticket** | Generated agents are TinyFish CLI + Skill-pinned scripts; Mac Mini pool runs browsers; 2× task completion vs MCP |
+| **TinyFish 1st** — 4× Mac Mini + $300 credits + **$2M Accelerator Golden Ticket** | Generated agents are TinyFish CLI + Skill-pinned scripts running on TinyFish's hosted browser cloud; 2× task completion vs MCP |
 | **Wundergraph 1st** — $2,000 cash | **Cosmo Dream Query** used exactly as intended — every new agent's subgraph SDL comes from Dream Query; EDFS optional for event fields |
 | **Chainguard** — $1,000 cash | Every agent image has SLSA L2 provenance predicate + build-time SBOM + keyless cosign via Fulcio + Rekor transparency log |
 | **InsForge 1st** — $1,000 cash | **Remote OAuth MCP** (no stdio), Agent Skills, Model Gateway fallback, PostgREST auto-API, Edge Function Editor |
@@ -68,7 +68,7 @@ Understudy watches you do a web workflow once, in 60 seconds, and ships you a si
 | **Backend (per agent)** | InsForge 2.0 | **Remote OAuth MCP**, Model Gateway, PostgREST, Edge Functions, Agent Skills |
 | **Memory** | Redis 8 | **Vector Sets int8** + **LangCache** + **Agent Memory Server** (auto extraction) |
 | **Supply chain** | Chainguard | `wolfi-base`, **SLSA L2 provenance**, build-time SBOM, Sigstore cosign + Fulcio + Rekor |
-| **Runtime** | Fly.io Machines + Mac Mini | cosign-verify pre-start hook; Mac Mini for browser pool |
+| **Runtime** | Fly.io Machines | cosign-verify pre-start hook on every boot; browser sessions delegated to TinyFish hosted cloud |
 | **CI** | GitHub Actions | Keyless Fulcio OIDC signing; SLSA L2 attestation |
 
 See [architecture.md](./architecture.md) for full diagrams (component, synthesis pipeline, Dream Query interaction, generated agent runtime, supply chain, ER data model, deployment), Redis keyspace design, Gemini 3 prompt chains + tool schemas, the "Why Gemini 3 Flash writes the scripts" rationale, and failure-mode analysis.
@@ -84,7 +84,7 @@ See [architecture.md](./architecture.md) for full diagrams (component, synthesis
 5. **1:20-1:40** Cosmo **Dream Query** generates the subgraph SDL live + live-traffic validator passes
 6. **1:40-2:00** Chainguard builds + SLSA L2 attests + cosign signs via Fulcio → `cosign verify` runs live
 7. **2:00-2:15** Deploy: federated endpoint blinks live
-8. **2:15-2:30** Hit endpoint: agent runs via TinyFish CLI; Mac Mini browser visible; InsForge + Redis AMS fill live
+8. **2:15-2:30** Hit endpoint: agent runs via TinyFish CLI; TinyFish hosted browser session streamed on-screen; InsForge + Redis AMS fill live
 9. **2:30-2:40** Repeat query → Redis **LangCache** hit <50ms
 10. **2:40-2:55** Related query → Agent Memory Server Vector Set recall
 11. **2:55-3:00** Wall of 10 synthesized agents — *"The agent that builds agents."*
@@ -162,7 +162,7 @@ understudy/
 
 Per Gary Chan's *How to Win a Hackathon* framework: no BizDev presenter = no win.
 
-- **Systems hacker** — Chainguard wolfi-base + SLSA L2 + cosign Fulcio + Fly + Mac Mini + OCI registry
+- **Systems hacker** — Chainguard wolfi-base + SLSA L2 + cosign Fulcio + Fly.io Machines + OCI registry
 - **Full-stack** — Synthesis pipeline + 3-Gemini chain + Cosmo Dream Query driver + InsForge 2.0 Remote MCP + Redis 8 (AMS + Vector Sets + LangCache)
 - **Frontend/design** — Upload UI + synthesis HUD + agent dashboard + Cosmo Studio embed + SLSA attestation viewer
 - **BizDev/presenter** — Validation interviews (hours 1-4), demo recording, live pitch, Q&A on model choice + supply chain

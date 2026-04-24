@@ -58,4 +58,4 @@ See architecture.md §13:
 - Dynamic sharding. One demo → one Postgres per slot. No cross-slot JOINs.
 - Schema migrations at claim time. Schema is seeded once at provision; new agents see the same shape.
 
-Owner task: **#9 — Build Fly + Mac Mini deployment infra** (this directory), supported by **#5 — Build agent template + TinyFish runtime** (worker-side claim logic).
+Owner task: **#9 — Build Fly.io deployment infra** (this directory), supported by **#5 — Build agent template + TinyFish runtime** (worker-side claim logic).

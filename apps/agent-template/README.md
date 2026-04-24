@@ -53,7 +53,7 @@ query { exportOrders(dateRange: "yesterday", format: CSV) { id rowCount download
 
 ## Build the agent image
 
-Use `infra/chainguard/Dockerfile.agent.tmpl` with the SBOM + SLSA predicate from `infra/chainguard/slsa-config.yaml`. Every rendered Dockerfile's `ENTRYPOINT` runs `/usr/local/bin/verify-self.sh` before the agent process — tampering produces a non-zero exit and Fly / launchd marks the deploy unhealthy.
+Use `infra/chainguard/Dockerfile.agent.tmpl` with the SBOM + SLSA predicate from `infra/chainguard/slsa-config.yaml`. Every rendered Dockerfile's `ENTRYPOINT` runs `/usr/local/bin/verify-self.sh` before the agent process — tampering produces a non-zero exit and Fly.io marks the deploy unhealthy.
 
 ## Prod swap: `@tinyfish/cli`
 
