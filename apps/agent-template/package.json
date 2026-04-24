@@ -4,11 +4,32 @@
   "private": true,
   "description": "Base TinyFish CLI scaffold — generated agents extend this with Gemini-emitted scripts (architecture.md §5).",
   "type": "module",
-  "main": "index.ts",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
-    "start": "echo 'TODO(task #5): tinyfish run index.ts'"
+    "dev": "tsx src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
-    "@tinyfish/cli": "^2.0.0"
+    "@apollo/server": "^4.11.2",
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "execa": "^9.5.2",
+    "graphql": "^16.9.0",
+    "graphql-tag": "^2.12.6",
+    "ioredis": "^5.4.1",
+    "zod": "^3.23.8",
+    "@tinyfish/cli": "file:./stubs/tinyfish-cli"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

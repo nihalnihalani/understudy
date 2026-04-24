@@ -1,0 +1,12 @@
+{
+  "name": "@tinyfish/cli",
+  "version": "0.0.0-local",
+  "description": "Local development stub for @tinyfish/cli — swapped for the real npm package at image build time (see apps/agent-template/README.md).",
+  "private": true,
+  "bin": {
+    "tinyfish": "./bin.js"
+  },
+  "files": [
+    "bin.js"
+  ]
+}

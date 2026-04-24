@@ -1,0 +1,14 @@
+{
+  "agent_id": "export-shopify-orders",
+  "cosmo_sdl_path": "./subgraph.graphql",
+  "tinyfish_products": ["web_agent", "web_fetch"],
+  "redis_namespace": "ams:agent:export-shopify-orders",
+  "insforge_tables": ["exports", "orders_cache"],
+  "skills_pinned": [
+    { "name": "shopify.orders.list", "version": "2.3.1" },
+    { "name": "csv.serialize", "version": "1.1.0" }
+  ],
+  "image_digest": "ghcr.io/nihalnihalani/understudy-agent-export-shopify-orders@sha256:7c1a9e4d6f8a2b5c3e9d0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c",
+  "cosign_signature": "MEUCIQDx9Wq7z5uG8K3pN4H6rB2vZ0mYX1eT7sLnF4R5j2kM9AIgY8cH5L0rN3bXpQ2wS1mD9vK4tJ6fC8aE7hG0nU3rP5M",
+  "slsa_attestation_path": "./slsa-attestation.intoto.jsonl"
+}
