@@ -20,7 +20,7 @@ import time
 from collections.abc import AsyncIterator
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
 from uuid import UUID, uuid4
 
 import httpx
@@ -74,7 +74,7 @@ app = FastAPI(
 
 
 @app.middleware("http")
-async def trace_middleware(request: Request, call_next: Callable) -> Response:
+async def trace_middleware(request: Request, call_next: Callable[..., Any]) -> Response:
     """Logs every request; for synthesis routes, also XADDs to `run:synth:{id}`.
 
     Tailable from the UI via `XREAD BLOCK 0 STREAMS run:synth:{id}` (§9).

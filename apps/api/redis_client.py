@@ -45,8 +45,8 @@ class RedisClient:
         if self._conn is not None:
             return self._conn
         try:
-            self._conn = aioredis.from_url(self._url, decode_responses=True)
-            await self._conn.ping()
+            self._conn = aioredis.from_url(self._url, decode_responses=True)  # type: ignore[no-untyped-call]
+            await self._conn.ping()  # type: ignore[misc]
             return self._conn
         except Exception:
             self._conn = None
@@ -65,7 +65,7 @@ class RedisClient:
             "message": message,
             "data": json.dumps(data or {}),
         }
-        await conn.xadd(synth_stream_key(run_id), fields)
+        await conn.xadd(synth_stream_key(run_id), fields)  # type: ignore[arg-type]
 
     async def read_trace(self, run_id: UUID | str) -> list[dict[str, Any]]:
         """Read the full `run:synth:{run_id}` stream from the beginning."""
@@ -139,7 +139,7 @@ class RedisClient:
         if raw is None:
             return None
         try:
-            return json.loads(raw)
+            return json.loads(raw)  # type: ignore[no-any-return]
         except json.JSONDecodeError:
             return None
 

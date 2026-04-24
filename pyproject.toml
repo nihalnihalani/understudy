@@ -53,6 +53,17 @@ target-version = "py311"
 [tool.mypy]
 python_version = "3.11"
 strict = true
+# Hyphenated directories (apps/cosmo-mcp-driver, apps/synthesis-worker,
+# apps/cosmo-router) contain __init__.py so pytest can collect them, but their
+# names are not valid Python package identifiers — mypy refuses to type-check
+# them as packages. Their tests use sys.path.insert to import directly; CI
+# runs mypy only on the package-valid sources.
+exclude = [
+    "apps/cosmo-mcp-driver/",
+    "apps/synthesis-worker/",
+    "apps/cosmo-router/",
+    "apps/agent-template/",
+]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
