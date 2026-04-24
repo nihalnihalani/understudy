@@ -13,6 +13,7 @@ import os
 from typing import Any
 
 import httpx
+from understudy.models import GEMINI_LIVE_MODEL_ALIASES
 
 try:  # Lazy import so tests / fixture-driven runs don't require google-genai at import time.
     from google import genai  # type: ignore[import-untyped]
@@ -258,7 +259,7 @@ class GeminiClient:
         try:
             response = await asyncio.to_thread(
                 self._client.models.generate_content,
-                model=model,
+                model=GEMINI_LIVE_MODEL_ALIASES.get(model, model),
                 contents=user_parts,
                 config=config,
             )

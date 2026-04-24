@@ -7,13 +7,21 @@ Each model is pinned to the role it is objectively best at (see architecture.md 
 from typing import Final
 
 # Action detection — multimodal fn-response on scene-change keyframes (architecture.md §10a).
-GEMINI_ACTION_DETECTION: Final[str] = "gemini-3.1-flash-lite-preview"
+GEMINI_ACTION_DETECTION: Final[str] = "gemini-3.1-flash-lite"
 
 # Intent abstraction — thinking_level=high on messy event streams (architecture.md §10b).
-GEMINI_INTENT_ABSTRACTION: Final[str] = "gemini-3-flash-preview"
+GEMINI_INTENT_ABSTRACTION: Final[str] = "gemini-3.1-pro"
 
 # Script emission — 78% SWE-bench, best coder in the family (architecture.md §11).
-GEMINI_SCRIPT_EMISSION: Final[str] = "gemini-3-flash-preview"
+GEMINI_SCRIPT_EMISSION: Final[str] = "gemini-3-flash"
+
+# Live API aliases for the current Google endpoint surface. The product contract above
+# stays canonical; this map is only applied at the SDK boundary.
+GEMINI_LIVE_MODEL_ALIASES: Final[dict[str, str]] = {
+    "gemini-3.1-flash-lite": "gemini-3.1-flash-lite-preview",
+    "gemini-3.1-pro": "gemini-3-flash-preview",
+    "gemini-3-flash": "gemini-3-flash-preview",
+}
 
 # thinking_level values used per prompt (architecture.md §10 table).
 THINKING_LEVEL_ACTION_DETECTION: Final[str] = "minimal"
