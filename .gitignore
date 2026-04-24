@@ -11,6 +11,13 @@ build/
 .vercel
 .fly/
 
+# Build + test artifacts — never commit these (one escaped in a prior commit; see revert).
+.coverage
+.coverage.*
+*.tsbuildinfo
+/package-lock.json
+*.egg-info/
+
 # Recordings — ignore all mp4s except the committed demo fixtures.
 *.mp4
 !fixtures/mp4/*.mp4
