@@ -1,0 +1,177 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    font-feature-settings: "cv11", "ss01", "ss03";
+  }
+  *:focus-visible {
+    outline: 2px solid theme("colors.primary.DEFAULT");
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  ::selection {
+    background: rgba(99, 102, 241, 0.35);
+    color: theme("colors.fg.DEFAULT");
+  }
+}
+
+@layer components {
+  .meter-track {
+    background: theme("colors.border.subtle");
+    border-radius: 9999px;
+    overflow: hidden;
+  }
+  .meter-fill {
+    background: linear-gradient(
+      90deg,
+      theme("colors.primary.DEFAULT") 0%,
+      theme("colors.primary.DEFAULT") 70%,
+      theme("colors.accent.amber") 100%
+    );
+    border-radius: 9999px;
+    height: 100%;
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-family: theme("fontFamily.mono");
+    border: 1px solid theme("colors.border.subtle");
+    background: theme("colors.canvas.elevated");
+    color: theme("colors.fg.muted");
+    line-height: 1.6;
+  }
+  .chip-emerald {
+    border-color: rgba(52, 211, 153, 0.35);
+    color: theme("colors.accent.emerald");
+    background: rgba(52, 211, 153, 0.08);
+  }
+  .chip-amber {
+    border-color: rgba(251, 191, 36, 0.35);
+    color: theme("colors.accent.amber");
+    background: rgba(251, 191, 36, 0.08);
+  }
+  .chip-crimson {
+    border-color: rgba(248, 113, 113, 0.35);
+    color: theme("colors.accent.crimson");
+    background: rgba(248, 113, 113, 0.08);
+  }
+  .chip-indigo {
+    border-color: rgba(99, 102, 241, 0.4);
+    color: theme("colors.primary.300");
+    background: rgba(99, 102, 241, 0.08);
+  }
+  .chip-cyan {
+    border-color: rgba(34, 211, 238, 0.35);
+    color: theme("colors.accent.cyan");
+    background: rgba(34, 211, 238, 0.08);
+  }
+  .card {
+    background: theme("colors.canvas.surface");
+    border: 1px solid theme("colors.border.subtle");
+    border-radius: 12px;
+  }
+  .card-elevated {
+    background: theme("colors.canvas.elevated");
+    border: 1px solid theme("colors.border.strong");
+    border-radius: 12px;
+  }
+  .receipt-row {
+    display: grid;
+    grid-template-columns: 180px 1fr;
+    gap: 16px;
+    padding: 8px 0;
+    border-bottom: 1px solid theme("colors.border.subtle");
+    font-family: theme("fontFamily.mono");
+    font-size: 12px;
+    line-height: 1.6;
+  }
+  .receipt-row:last-child {
+    border-bottom: none;
+  }
+  .receipt-row > dt {
+    color: theme("colors.fg.muted");
+  }
+  .receipt-row > dd {
+    color: theme("colors.fg.DEFAULT");
+    word-break: break-all;
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.2;
+    transition: background-color 120ms ease-out, border-color 120ms ease-out,
+      color 120ms ease-out;
+    border: 1px solid transparent;
+    cursor: pointer;
+  }
+  .btn-primary {
+    background: theme("colors.primary.DEFAULT");
+    color: #0a0b10;
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: theme("colors.primary.700");
+    color: #0a0b10;
+  }
+  .btn-primary:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  .btn-ghost {
+    background: transparent;
+    color: theme("colors.fg.DEFAULT");
+    border-color: theme("colors.border.strong");
+  }
+  .btn-ghost:hover {
+    background: theme("colors.canvas.elevated");
+    border-color: theme("colors.primary.DEFAULT");
+    color: theme("colors.fg.DEFAULT");
+  }
+  .kbd {
+    font-family: theme("fontFamily.mono");
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: theme("colors.canvas.elevated");
+    border: 1px solid theme("colors.border.strong");
+    color: theme("colors.fg.muted");
+  }
+  .diff-plus {
+    background: rgba(52, 211, 153, 0.08);
+    border-left: 2px solid theme("colors.accent.emerald");
+  }
+  .diff-minus {
+    background: rgba(248, 113, 113, 0.08);
+    border-left: 2px solid theme("colors.accent.crimson");
+  }
+  .scrollbar-tight {
+    scrollbar-width: thin;
+    scrollbar-color: theme("colors.border.strong") transparent;
+  }
+  .scrollbar-tight::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scrollbar-tight::-webkit-scrollbar-thumb {
+    background: theme("colors.border.strong");
+    border-radius: 3px;
+  }
+}
