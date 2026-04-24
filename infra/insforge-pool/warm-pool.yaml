@@ -1,0 +1,11 @@
+# InsForge 2.0 warm-pool config — 3 pre-provisioned backends for the demo (architecture.md §18 risk #3).
+# Each pool slot carries: Remote OAuth MCP endpoint, PostgREST base URL, Model Gateway fallback routes.
+pool_size: 3
+backends:
+  - slot: 0
+    status: reserved
+    # TODO(task #5): populate MCP endpoint + OAuth client credentials at provisioning time.
+  - slot: 1
+    status: reserved
+  - slot: 2
+    status: reserved

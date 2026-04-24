@@ -1,0 +1,14 @@
+# SLSA Build Level 2 provenance config (architecture.md §6).
+# The builder identity + OIDC issuer pair must match what cosign verify uses downstream.
+slsa_level: 2
+predicate_type: "https://slsa.dev/provenance/v1"
+builder:
+  id: "https://github.com/nihalnihalani/understudy/.github/workflows/release.yml@refs/heads/main"
+oidc_issuer: "https://token.actions.githubusercontent.com"
+sbom:
+  format: "spdx-json"
+  generation: "build-time"  # in-process, not post-scan. See architecture.md §6.
+signing:
+  mode: "keyless"
+  fulcio_url: "https://fulcio.sigstore.dev"
+  rekor_url: "https://rekor.sigstore.dev"

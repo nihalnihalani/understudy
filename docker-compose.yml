@@ -1,0 +1,53 @@
+# Understudy local dev stack — mirrors architecture.md §12 deployment diagram.
+# Managed-services (InsForge, Redis 8 Cloud, Cosmo Cloud) are run as local placeholders here.
+version: "3.9"
+
+services:
+  redis:
+    image: redis:8
+    container_name: understudy-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  cosmo-router:
+    # Placeholder — real router image pinned in apps/cosmo-router/.
+    image: ghcr.io/wundergraph/cosmo-router:latest
+    container_name: understudy-cosmo-router
+    ports:
+      - "3002:3002"
+    environment:
+      - DEV_MODE=true
+    depends_on:
+      - redis
+
+  synthesis-api:
+    # Placeholder — built from apps/api/ once Dockerfile lands (task #2).
+    image: ghcr.io/nihalnihalani/understudy-synthesis-api:dev
+    container_name: understudy-synthesis-api
+    ports:
+      - "8080:8080"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - COSMO_ROUTER_URL=http://cosmo-router:3002
+      - DEMO_MODE=${DEMO_MODE:-live}
+    env_file:
+      - .env
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  insforge:
+    # Placeholder — InsForge 2.0 Remote OAuth MCP runs as managed SaaS in prod.
+    # Local stand-in for development only; see infra/insforge-pool/ for warm-pool config.
+    image: postgres:16
+    container_name: understudy-insforge-stub
+    environment:
+      - POSTGRES_PASSWORD=insforge_dev
+      - POSTGRES_DB=understudy
+    ports:
+      - "5432:5432"

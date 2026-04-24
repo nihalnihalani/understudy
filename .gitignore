@@ -1,10 +1,16 @@
 .env
 .env.local
+.venv/
 node_modules/
 __pycache__/
 *.pyc
+.pytest_cache/
 .DS_Store
 dist/
 build/
 .vercel
 .fly/
+
+# Recordings — ignore all mp4s except the committed demo fixture.
+*.mp4
+!fixtures/demo.mp4

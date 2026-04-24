@@ -1,0 +1,9 @@
+# Per-agent Dockerfile template — rendered at synthesis time (architecture.md §6).
+# Every emitted image carries SLSA L2 provenance + build-time SBOM + keyless cosign signature.
+FROM cgr.dev/chainguard/wolfi-base:latest AS agent
+
+# TODO(task #8): apk add chromium + TinyFish runtime deps.
+# TODO(task #8): COPY synthesized TinyFish script + runtime_manifest.json.
+# TODO(task #8): pin skills_pinned versions during install.
+
+# SBOM is emitted in-process by the Chainguard builder; no post-build syft step.

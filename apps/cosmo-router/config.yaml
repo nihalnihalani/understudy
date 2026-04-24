@@ -1,0 +1,7 @@
+# Cosmo Router config — generated agents register as subgraphs at synthesis time.
+# Populated by apps/cosmo-mcp-driver after schema_change_proposal_workflow completes.
+# See architecture.md §7.
+version: "1"
+listen_addr: "0.0.0.0:3002"
+# TODO(task #6): subgraph manifest gets rewritten each time a new agent is published.
+subgraphs: []

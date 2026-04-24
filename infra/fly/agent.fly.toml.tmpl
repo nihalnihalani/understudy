@@ -1,0 +1,13 @@
+# Per-agent Fly.toml template — rendered at synthesis time for every generated agent.
+# Variables: {{ AGENT_ID }}, {{ IMAGE_DIGEST }}, {{ AMS_NAMESPACE }}.
+# See architecture.md §5 (Generated Agent Runtime) and §12 (Deployment).
+app = "understudy-agent-{{ AGENT_ID }}"
+primary_region = "iad"
+
+[build]
+  image = "ghcr.io/nihalnihalani/understudy-agent-{{ AGENT_ID }}@{{ IMAGE_DIGEST }}"
+
+[env]
+  AMS_NAMESPACE = "{{ AMS_NAMESPACE }}"
+
+# TODO(task #9): cosign pre-start hook verifying the pinned image digest.

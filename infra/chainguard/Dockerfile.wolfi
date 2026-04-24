@@ -1,0 +1,3 @@
+# Chainguard wolfi-base — Chromium-compatible, zero-CVE posture (architecture.md §6).
+# TODO(task #8): add apk-add shared libs for headful Chromium + copy TinyFish scaffold.
+FROM cgr.dev/chainguard/wolfi-base:latest

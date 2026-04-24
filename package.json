@@ -1,0 +1,17 @@
+{
+  "name": "understudy",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Understudy monorepo — JS/TS workspaces for generated agent template and future web UI.",
+  "workspaces": [
+    "apps/agent-template",
+    "apps/web"
+  ],
+  "scripts": {
+    "dev": "echo 'Run docker compose up for local dev — see README.md'",
+    "lint": "echo 'TODO: wire eslint/prettier per workspace'"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

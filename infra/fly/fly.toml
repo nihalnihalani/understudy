@@ -1,0 +1,24 @@
+# Fly.io Machine manifest for the Understudy synthesis API (architecture.md §12).
+# Generated agents get their own fly.toml rendered per-agent at synthesis time.
+app = "understudy-synthesis"
+primary_region = "iad"
+
+[build]
+  image = "ghcr.io/nihalnihalani/understudy-synthesis-api:latest"
+
+[env]
+  PORT = "8080"
+  DEMO_MODE = "live"
+
+[[services]]
+  internal_port = 8080
+  protocol = "tcp"
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+# TODO(task #9): cosign-verify pre-start hook — refuses to boot if SLSA L2 attestation
+# does not validate against Fulcio cert + Rekor log (architecture.md §6, §12).
+# [deploy]
+#   strategy = "rolling"
+#   release_command = "scripts/cosign_verify_prestart.sh"

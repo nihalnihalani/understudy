@@ -1,0 +1,28 @@
+# CI pipeline: Chainguard build → SLSA L2 attest → keyless Fulcio sign → Rekor log → push.
+# Mirrored to .github/workflows/release.yml at wire-up time (task #8).
+# See architecture.md §6 and §12.
+name: release
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+
+permissions:
+  id-token: write   # required for Fulcio keyless OIDC signing
+  contents: read
+  packages: write
+
+jobs:
+  build-sign-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # TODO(task #8): Chainguard build with build-time SBOM (in-process syft).
+      # TODO(task #8): generate SLSA L2 provenance predicate (in-toto).
+      # TODO(task #8): cosign sign + cosign attest via Fulcio keyless OIDC → Rekor.
+      # TODO(task #8): push to ghcr.io with the signed digest pinned in Fly manifests.
+
+      - name: Placeholder
+        run: echo "TODO(task #8): implement signing pipeline"
