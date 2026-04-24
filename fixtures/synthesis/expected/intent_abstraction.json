@@ -1,0 +1,23 @@
+{
+  "goal": "Export Shopify orders CSV filtered by a user-provided date range",
+  "inputs": [
+    {"name": "date_range", "type": "string", "default": "yesterday"}
+  ],
+  "invariants": {
+    "target_site": "admin.shopify.com",
+    "export_format": "csv"
+  },
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "csv_url": {"type": "string"},
+      "row_count": {"type": "integer"}
+    }
+  },
+  "steps": [
+    {"intent": "navigate_to_orders", "selector_hint": "nav >> Orders"},
+    {"intent": "open_filters", "selector_hint": "button >> Filters"},
+    {"intent": "set_date_range", "selector_hint": "input[aria-label='Date range']"},
+    {"intent": "export_csv", "selector_hint": "button >> Export"}
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "script": "import { agent, skill } from '@tinyfish/cli';\n\nexport default agent({\n  name: 'shopify-orders-export',\n  inputs: { date_range: { type: 'string', default: 'yesterday' } },\n  async run({ input, browser }) {\n    await browser.navigate('https://admin.shopify.com/orders');\n    await skill('open-filters').run(browser);\n    await skill('set-date-range').run(browser, { value: input.date_range });\n    const csv = await skill('export-csv').run(browser);\n    return { csv_url: csv.url, row_count: csv.rows };\n  }\n});\n",
+  "cosmo_sdl": "type Query { run(input: RunInput!): RunResult! }\ninput RunInput { date_range: String = \"yesterday\" }\ntype RunResult { csv_url: String!, row_count: Int! }\n",
+  "runtime_manifest": {
+    "tinyfish_products": ["web_agent", "web_browser"],
+    "redis_namespace": "ams:agent:shopify-orders-export",
+    "insforge_tables": ["agent_runs", "agent_memories"]
+  },
+  "skills_pinned": [
+    {"name": "open-filters", "version": "1.2.0"},
+    {"name": "set-date-range", "version": "1.4.1"},
+    {"name": "export-csv", "version": "2.0.0"}
+  ]
+}

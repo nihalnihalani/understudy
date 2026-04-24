@@ -1,0 +1,7 @@
+{
+  "action": "CLICK",
+  "target_description": "Filters button on the orders list toolbar",
+  "bbox": [720.0, 96.0, 796.0, 124.0],
+  "text_typed": null,
+  "confidence": 0.94
+}

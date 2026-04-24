@@ -1,0 +1,12 @@
+[
+  {
+    "added": ["div.filter-panel[role='dialog']", "input[aria-label='Date range']"],
+    "removed": [],
+    "focus_changed": "input[aria-label='Date range']"
+  },
+  {
+    "added": ["a[download='export_complete.csv']"],
+    "removed": ["div.filter-panel[role='dialog']"],
+    "focus_changed": null
+  }
+]

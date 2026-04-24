@@ -1,0 +1,5 @@
+[
+  {"url": "https://admin.shopify.com/orders", "title": "Orders · Shopify"},
+  {"url": "https://admin.shopify.com/orders?filter=open", "title": "Orders · Shopify"},
+  {"url": "https://admin.shopify.com/orders?export=csv", "title": "Export complete · Shopify"}
+]

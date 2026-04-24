@@ -1,0 +1,7 @@
+{
+  "action": "SUBMIT",
+  "target_description": "Export CSV button in the filters dialog",
+  "bbox": [200.0, 230.0, 320.0, 262.0],
+  "text_typed": null,
+  "confidence": 0.91
+}
