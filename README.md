@@ -140,7 +140,7 @@ We explicitly avoided basic "checkbox" integrations. Every tool is load-bearing 
 
 | Tool | Basic Use (What we DIDN'T do) | Our Creative Use (What we DID) |
 |---|---|---|
-| **Wundergraph Cosmo** | Merely routing standard GraphQL | **Schema Synthesis Inversion**: Using Dream Query to actively *synthesize* the subgraph SDL from the agent's desired target shape. |
+| **Wundergraph Cosmo** | Merely routing standard GraphQL | **Schema Synthesis Inversion**: Using Dream Query to actively *synthesize* the subgraph SDL from the agent's desired target shape. **Cosmo Connect** then exposes every synthesized agent as gRPC + REST + OpenAPI (Trusted Documents pushed via `wgc operations push`), not just GraphQL. |
 | **Chainguard** | Just using a base image | Implementing a **cryptographic boot refusal** pipeline. Fly.io pre-start hooks verify the SLSA L2 provenance and Rekor inclusion *before* the agent is allowed to boot. |
 | **Redis 8** | Simple key-value caching | Implementing **int8 Vector Sets** (saving 75% memory with 99%+ recall) and an **Agent Memory Server** that automatically extracts topics/entities into short and long-term memory streams. |
 | **TinyFish** | A simple local browser agent | Compiling the output natively into a **TinyFish CLI script** and executing it strictly on TinyFish's hosted browser cloud, treating the browser as remote infrastructure. |

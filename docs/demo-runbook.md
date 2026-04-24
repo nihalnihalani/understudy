@@ -28,6 +28,15 @@ See architecture.md §15 for the minute-by-minute table. Kill-switch:
 Docker Compose stack in one command. Browser sessions run on TinyFish's
 hosted cloud; no second runtime surface needs flipping.
 
+### 2:15 — Four-protocol pop (Cosmo Connect)
+
+Right after the federated endpoint blinks live (architecture.md §15, 2:00-2:15
+beat), click an agent tile on the wall and hover its four chips: **GraphQL**,
+**gRPC**, **REST**, **OpenAPI**. Copy the gRPC URL and paste it into the
+terminal: `curl -sf {url}/health`. Beat: *"one recording → four protocols,
+served from one federated graph."* Trusted Documents emitted by the synthesis
+worker drive the Cosmo Connect surface — no extra Gemini call.
+
 ## Owner task
 
 Final demo content lands with task **#10 — Design UI with Stitch MCP** and surrounding polish tasks.

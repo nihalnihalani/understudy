@@ -176,6 +176,8 @@ sequenceDiagram
 
 **On stage we show:** the composed supergraph in Cosmo Studio + the Dream Query diff in a terminal. We do NOT run Cursor on stage (demo poison). The Dream Query narrative: *"Cosmo MCP just ran the proposal-composition-publish cycle to merge this agent's subgraph — and validated it against live client traffic patterns to guarantee no breaking changes."*
 
+After script emission, the synthesis worker walks the finalized SDL and emits one **Trusted Document** per Query/Mutation field, which Cosmo Connect then serves over GraphQL, gRPC, JSON+REST, and OpenAPI from the same federated graph.
+
 ---
 
 ## 5. Generated Agent Runtime
