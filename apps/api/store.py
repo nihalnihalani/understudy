@@ -1,16 +1,32 @@
-"""In-memory fixture store for the API layer.
+"""Store implementations for the API layer.
 
-Real persistence is InsForge 2.0 PostgREST (architecture.md §8). Until the backend
-wire-up lands (part of task #5), the API layer serves a small in-memory fixture set so
-`GET /agents`, `GET /agents/{id}`, `GET /agents/{id}/attestation`, and
-`GET /synthesis/{id}` have something to return for the frontend and tests.
+Two backends with the same five-method interface (create_run, get_run, list_agents,
+get_agent, get_attestation):
+
+  - Store: the original in-memory fixture store. Tests use this directly so
+    they don't need network access. Behavior is unchanged for backward compat.
+  - InsforgeStore: httpx-backed, talks to InsForge PostgREST at
+    `{INSFORGE_URL}/api/database/records/{table}`. Used in production when
+    INSFORGE_URL + INSFORGE_API_KEY are set (architecture.md §8).
+
+`get_store()` picks InsforgeStore when both env vars are set AND the caller
+hasn't forced `STORE_BACKEND=memory`; otherwise falls back to in-memory Store.
+
+The InsforgeStore falls back to fixture data when tables are empty — lets the
+frontend / demo run even before CI has populated `image` / `slsa_attestation` /
+`sbom` rows. That fallback is hackathon ergonomics, not production behavior.
 """
 
 from __future__ import annotations
 
 import hashlib
+import logging
+import os
 from datetime import datetime, timedelta, timezone
+from typing import Any
 from uuid import UUID, uuid4
+
+import httpx
 
 from .schemas import (
     Agent,
@@ -21,6 +37,8 @@ from .schemas import (
     SynthesisRun,
     SynthesisStatus,
 )
+
+log = logging.getLogger(__name__)
 
 
 _AGENT_1_ID = UUID("11111111-1111-1111-1111-111111111111")
@@ -107,6 +125,8 @@ def build_attestation(agent: Agent) -> FullAttestation:
     )
 
 
+# ───── Backend 1: in-memory (unchanged) ──────────────────────────────────────
+
 class Store:
     """In-memory fixtures + run registry. Thread-safety not required — uvicorn single proc."""
 
@@ -114,7 +134,17 @@ class Store:
         self.agents: dict[UUID, Agent] = seed_agents()
         self.runs: dict[UUID, SynthesisRun] = {}
 
-    def create_run(self, recording_id: UUID) -> SynthesisRun:
+    def create_run(
+        self,
+        recording_id: UUID,
+        *,
+        s3_uri: str | None = None,
+        duration_s: int | None = None,
+    ) -> SynthesisRun:
+        # s3_uri and duration_s are ignored by the in-memory backend; they
+        # exist in the signature so main.py can pass them uniformly to either
+        # backend (InsforgeStore needs them for the FK-referenced recording row).
+        _ = (s3_uri, duration_s)
         run = SynthesisRun(
             id=uuid4(),
             recording_id=recording_id,
@@ -140,12 +170,210 @@ class Store:
         return build_attestation(agent)
 
 
-_store: Store | None = None
+# ───── Backend 2: InsForge PostgREST ─────────────────────────────────────────
+
+class InsforgeStore:
+    """httpx-backed store that talks to InsForge PostgREST.
+
+    Endpoint shape (verified by probe against the live linked project):
+      GET  {base}/api/database/records/{table}?<filter>=eq.<val>    → list of rows
+      POST {base}/api/database/records/{table}                      → 201, inserts rows
+    Filter syntax is PostgREST (`id=eq.<uuid>`).
+
+    On empty-table reads, falls back to seed_agents() so the frontend / demo
+    path still renders. Read errors also degrade to fixtures; write errors
+    raise (a broken INSERT must be surfaced, not silently swallowed).
+    """
+
+    def __init__(self, *, base_url: str, api_key: str, timeout_s: float = 5.0) -> None:
+        self._base = base_url.rstrip("/")
+        self._client = httpx.Client(
+            base_url=self._base,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            timeout=timeout_s,
+        )
+        # Fallback fixtures when tables are empty (hackathon ergonomics).
+        self._fixture_agents = seed_agents()
+
+    def __del__(self) -> None:
+        client = getattr(self, "_client", None)
+        if client is not None:
+            client.close()
+
+    # ---- write path ----
+
+    def create_run(
+        self,
+        recording_id: UUID,
+        *,
+        s3_uri: str | None = None,
+        duration_s: int | None = None,
+    ) -> SynthesisRun:
+        # recording FK must exist before synthesis_run points at it.
+        rec_payload = {
+            "id": str(recording_id),
+            "s3_uri": s3_uri or f"pending://{recording_id}",
+            "duration_s": duration_s or 60,
+        }
+        rec_resp = self._client.post("/api/database/records/recording", json=[rec_payload])
+        if rec_resp.status_code not in (200, 201, 409):  # 409 = already exists, idempotent
+            log.warning("recording insert failed %s: %s", rec_resp.status_code, rec_resp.text[:200])
+
+        run_id = uuid4()
+        run_payload = {
+            "id": str(run_id),
+            "recording_id": str(recording_id),
+            "status": SynthesisStatus.QUEUED.value,
+        }
+        run_resp = self._client.post("/api/database/records/synthesis_run", json=[run_payload])
+        if run_resp.status_code not in (200, 201):
+            raise RuntimeError(
+                f"synthesis_run insert failed {run_resp.status_code}: {run_resp.text[:200]}"
+            )
+
+        return SynthesisRun(
+            id=run_id,
+            recording_id=recording_id,
+            status=SynthesisStatus.QUEUED,
+        )
+
+    # ---- read path ----
+
+    def get_run(self, run_id: UUID) -> SynthesisRun | None:
+        rows = self._select("synthesis_run", f"id=eq.{run_id}")
+        if not rows:
+            return None
+        row = rows[0]
+        return SynthesisRun(
+            id=UUID(row["id"]),
+            recording_id=UUID(row["recording_id"]),
+            status=SynthesisStatus(row.get("status") or "queued"),
+            gemini_lite_trace=row.get("gemini_lite_trace"),
+            gemini_pro_trace=row.get("gemini_pro_trace"),
+            gemini_flash_trace=row.get("gemini_flash_trace"),
+            intent_abstraction=row.get("intent_abstraction"),
+            completed_at=_parse_ts(row.get("completed_at")),
+        )
+
+    def list_agents(self) -> list[Agent]:
+        rows = self._select("agent")
+        if not rows:
+            return list(self._fixture_agents.values())
+        return [_row_to_agent(row) for row in rows]
+
+    def get_agent(self, agent_id: UUID) -> Agent | None:
+        rows = self._select("agent", f"id=eq.{agent_id}")
+        if rows:
+            return _row_to_agent(rows[0])
+        return self._fixture_agents.get(agent_id)
+
+    def get_attestation(self, agent_id: UUID) -> FullAttestation | None:
+        agent = self.get_agent(agent_id)
+        if agent is None:
+            return None
+        # The `image` / `slsa_attestation` / `sbom` rows are populated by the
+        # release CI pipeline. Until that lands, derive a deterministic fixture
+        # bundle from the agent's image_digest so the Supply Chain page renders.
+        # If those rows DO exist, merge them over the fixture.
+        bundle = build_attestation(agent)
+        try:
+            img = self._select("image", f"digest=eq.{agent.image_digest}")
+            slsa = self._select("slsa_attestation", f"image_digest=eq.{agent.image_digest}")
+            sbom = self._select("sbom", f"image_digest=eq.{agent.image_digest}")
+        except Exception as exc:
+            log.warning("attestation enrichment query failed: %s", exc)
+            return bundle
+
+        if img:
+            bundle.image = Image(
+                digest=img[0]["digest"],
+                registry=img[0].get("registry", bundle.image.registry),
+                built_at=_parse_ts(img[0].get("built_at")) or bundle.image.built_at,
+            )
+        if slsa:
+            bundle.slsa = SlsaAttestation(
+                predicate_type=slsa[0].get("predicate_type", bundle.slsa.predicate_type),
+                builder_id=slsa[0].get("builder_id", bundle.slsa.builder_id),
+                materials=slsa[0].get("materials") or bundle.slsa.materials,
+            )
+        if sbom:
+            bundle.sbom = Sbom(
+                format=sbom[0].get("format", bundle.sbom.format),
+                generation_time=_parse_ts(sbom[0].get("generation_time"))
+                or bundle.sbom.generation_time,
+                components=sbom[0].get("components") or bundle.sbom.components,
+            )
+        return bundle
+
+    # ---- internals ----
+
+    def _select(self, table: str, filter_expr: str | None = None) -> list[dict[str, Any]]:
+        """GET /api/database/records/<table>[?<filter>]; returns [] on any HTTP error."""
+        path = f"/api/database/records/{table}"
+        if filter_expr:
+            path = f"{path}?{filter_expr}"
+        try:
+            r = self._client.get(path)
+        except httpx.HTTPError as exc:
+            log.warning("select %s %s failed: %s", table, filter_expr, exc)
+            return []
+        if r.status_code != 200:
+            log.warning("select %s returned %d: %s", table, r.status_code, r.text[:200])
+            return []
+        body = r.json()
+        return body if isinstance(body, list) else []
 
 
-def get_store() -> Store:
+def _parse_ts(raw: Any) -> datetime | None:
+    if not raw:
+        return None
+    if isinstance(raw, datetime):
+        return raw
+    if not isinstance(raw, str):
+        return None
+    try:
+        return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _row_to_agent(row: dict[str, Any]) -> Agent:
+    return Agent(
+        id=UUID(row["id"]),
+        image_digest=row["image_digest"],
+        cosign_sig=row["cosign_sig"],
+        graphql_endpoint=row["graphql_endpoint"],
+        ams_namespace=row["ams_namespace"],
+    )
+
+
+# ───── Singleton factory ─────────────────────────────────────────────────────
+
+_store: Store | InsforgeStore | None = None
+
+
+def get_store() -> Store | InsforgeStore:
+    """Return the singleton store.
+
+    Picks InsforgeStore when INSFORGE_URL + INSFORGE_API_KEY are both set and
+    STORE_BACKEND != "memory"; otherwise returns the in-memory Store.
+    """
     global _store
-    if _store is None:
+    if _store is not None:
+        return _store
+
+    url = os.getenv("INSFORGE_URL")
+    api_key = os.getenv("INSFORGE_API_KEY")
+    forced_memory = os.getenv("STORE_BACKEND", "").lower() == "memory"
+    if url and api_key and not forced_memory:
+        log.info("store: InsforgeStore (base=%s)", url)
+        _store = InsforgeStore(base_url=url, api_key=api_key)
+    else:
+        log.info("store: in-memory Store (url=%r api_key=%r forced_memory=%s)",
+                 bool(url), bool(api_key), forced_memory)
         _store = Store()
     return _store
 
