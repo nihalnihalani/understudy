@@ -31,6 +31,12 @@ dev = [
     "mypy>=1.13",
 ]
 
+# Console scripts work around the hyphenated `apps/synthesis-worker/` and
+# `apps/cosmo-mcp-driver/` directories — see understudy/bin.py for rationale.
+[project.scripts]
+understudy-synthesis-worker = "understudy.bin:synthesis_worker_main"
+understudy-cosmo-driver = "understudy.bin:cosmo_driver_main"
+
 [tool.setuptools.packages.find]
 include = ["understudy*"]
 exclude = ["apps*", "infra*", "scripts*", "docs*", "tests*"]
@@ -46,3 +52,6 @@ strict = true
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests", "apps"]
+# importlib mode avoids module-name collisions between tests/ and apps/*/tests/
+# (both have test modules that would otherwise resolve to `tests.<name>`).
+addopts = "--import-mode=importlib"

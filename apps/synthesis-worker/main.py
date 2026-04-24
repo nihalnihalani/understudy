@@ -80,7 +80,10 @@ async def _write_trace(redis: aioredis.Redis, run_id: str, stage: str, data: Any
 async def _process_job(
     redis: aioredis.Redis, gemini: GeminiClient, msg_id: str, fields: dict[str, str]
 ) -> None:
-    synth_id = fields["synth_id"]
+    # The API enqueues `run_id` (the SYNTHESIS_RUN row id from architecture.md §8);
+    # the worker's internal naming is `synth_id`. They are the same UUID — accept
+    # either field so the API/worker contract isn't brittle to which side renames.
+    synth_id = fields.get("synth_id") or fields["run_id"]
     log.info("processing synth_id=%s msg=%s", synth_id, msg_id)
     await _write_trace(redis, synth_id, "stage_started", {"stage": "keyframes"})
 
