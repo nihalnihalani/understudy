@@ -1,0 +1,21 @@
+{
+  "fixture_name": "orders-query",
+  "description": "Classic shape: a generated agent wants to export yesterday's orders. Mirrors the 0:00-1:20 demo beat in architecture.md §15.",
+  "dream_query": {
+    "sdl_delta": "extend type Query {\n  \"\"\"Yesterday's completed orders, filtered by an ISO date range or a relative token like 'yesterday'.\"\"\"\n  orderExports(dateRange: String!, limit: Int = 50): OrderExportConnection!\n}\n\ntype OrderExportConnection {\n  edges: [OrderExportEdge!]!\n  pageInfo: PageInfo!\n  totalCount: Int!\n}\n\ntype OrderExportEdge {\n  node: OrderExport!\n  cursor: String!\n}\n\ntype OrderExport {\n  id: ID!\n  orderNumber: String!\n  placedAt: DateTime!\n  totalCents: Int!\n  currency: String!\n  csvUrl: String!\n}\n\ntype PageInfo {\n  hasNextPage: Boolean!\n  endCursor: String\n}\n\nscalar DateTime\n",
+    "resolver_stubs": [
+      {
+        "type": "Query",
+        "field": "orderExports",
+        "signature": "async (parent, args, ctx) => OrderExportConnection",
+        "arguments": [
+          {"name": "dateRange", "type": "String!", "description": "ISO range or relative token"},
+          {"name": "limit", "type": "Int", "default": 50}
+        ],
+        "subgraph": "agent_orders_exporter",
+        "backing": "insforge.postgrest://order_exports"
+      }
+    ],
+    "confidence": 0.94
+  }
+}

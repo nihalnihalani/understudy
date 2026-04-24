@@ -1,0 +1,30 @@
+{
+  "fixture_name": "products-mutation",
+  "description": "Mutation shape: an agent wants to create or update a product listing. Exercises input types + EDFS-ready field for ProductUpdated events.",
+  "dream_query": {
+    "sdl_delta": "extend type Mutation {\n  \"\"\"Upsert a product — creates if no id is supplied, updates otherwise.\"\"\"\n  upsertProduct(input: UpsertProductInput!): UpsertProductPayload!\n}\n\ninput UpsertProductInput {\n  id: ID\n  title: String!\n  descriptionHtml: String\n  priceCents: Int!\n  currency: String!\n  inventoryQuantity: Int = 0\n  tags: [String!] = []\n}\n\ntype UpsertProductPayload {\n  product: Product!\n  created: Boolean!\n}\n\ntype Product @key(fields: \"id\") {\n  id: ID!\n  title: String!\n  descriptionHtml: String\n  priceCents: Int!\n  currency: String!\n  inventoryQuantity: Int!\n  tags: [String!]!\n  updatedAt: DateTime!\n}\n\nextend type Subscription {\n  productUpdated(id: ID!): Product! @edfs__kafkaPublish(topic: \"understudy.events.productUpdated\")\n}\n\nscalar DateTime\n",
+    "resolver_stubs": [
+      {
+        "type": "Mutation",
+        "field": "upsertProduct",
+        "signature": "async (parent, { input }, ctx) => UpsertProductPayload",
+        "arguments": [
+          {"name": "input", "type": "UpsertProductInput!"}
+        ],
+        "subgraph": "agent_product_catalog",
+        "backing": "insforge.postgrest://products"
+      },
+      {
+        "type": "Subscription",
+        "field": "productUpdated",
+        "signature": "async function* productUpdated(parent, { id }, ctx) { /* EDFS-driven */ }",
+        "arguments": [
+          {"name": "id", "type": "ID!"}
+        ],
+        "subgraph": "agent_product_catalog",
+        "backing": "edfs.kafka://understudy.events.productUpdated"
+      }
+    ],
+    "confidence": 0.91
+  }
+}
