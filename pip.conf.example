@@ -1,0 +1,25 @@
+# Chainguard Libraries — Python (malware-resistant rebuilt-from-source PyPI mirror).
+#
+# To use:
+#   1. cp pip.conf.example pip.conf
+#   2. Replace placeholders below with the values from:
+#        chainctl auth pull-token --repository=python --ttl=720h
+#   3. IMPORTANT: the Username contains a '/' character. Replace it with '_'
+#      when embedding in the URL (otherwise pip returns a 403).
+#   4. pip.conf is .gitignored — never commit the real file.
+#
+# Usage:
+#   pip install --config-file pip.conf <package>
+#   # or: export PIP_CONFIG_FILE="$(pwd)/pip.conf"
+#
+# Docker:
+#   docker build \
+#     --build-arg PIP_INDEX_URL="https://USER_WITH_SLASH_AS_UNDERSCORE:PASS@libraries.cgr.dev/python/simple" \
+#     -f infra/chainguard/Dockerfile.wolfi .
+#
+# Docs: https://edu.chainguard.dev/chainguard/libraries/python/
+
+[global]
+index-url = https://USERNAME_WITH_SLASH_REPLACED_BY_UNDERSCORE:PASSWORD@libraries.cgr.dev/python/simple
+# Falls back to public PyPI for packages Chainguard doesn't mirror yet.
+extra-index-url = https://pypi.org/simple

@@ -11,7 +11,9 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-SCHEMA_SQL = Path(__file__).resolve().parents[1] / "infra" / "insforge-pool" / "schema.sql"
+REPO_ROOT = Path(__file__).resolve().parents[1]
+SCHEMA_SQL = REPO_ROOT / "infra" / "insforge-pool" / "schema.sql"
+MIGRATIONS_DIR = REPO_ROOT / "migrations"
 
 
 EXPECTED_TABLES = {
@@ -114,6 +116,60 @@ def test_uuid_pks_use_gen_random_uuid() -> None:
     for m in re.finditer(r"^\s*id\s+uuid\s+PRIMARY\s+KEY([^,\n]*)", sql, re.MULTILINE | re.IGNORECASE):
         tail = m.group(1).lower()
         assert "gen_random_uuid()" in tail, f"uuid PK missing default: {m.group(0).strip()}"
+
+
+def test_migrations_schema_matches_warm_pool_schema() -> None:
+    """schema.sql and the initial migration must stay in sync.
+
+    Two paths seed InsForge:
+    - `infra/insforge-pool/provision.sh` applies `infra/insforge-pool/schema.sql`
+      to each warm-pool tenant (architecture.md §18 risk #3).
+    - `npx @insforge/cli db migrations up` applies `migrations/*.sql` to the
+      linked CLI-managed project.
+
+    Both must produce the same table + column set so the two provisioning
+    paths stay fungible. This test parses both files and asserts parity.
+    """
+    schema_tables = _parse_tables(SCHEMA_SQL.read_text())
+    migration_files = sorted(MIGRATIONS_DIR.glob("*.sql")) if MIGRATIONS_DIR.exists() else []
+    assert migration_files, (
+        "no CLI migrations found — run `npx @insforge/cli db migrations new initial-schema` "
+        "and copy schema.sql contents (minus BEGIN/COMMIT) into the new file"
+    )
+    migration_sql = "\n".join(p.read_text() for p in migration_files)
+    migration_tables = _parse_tables(migration_sql)
+
+    assert schema_tables.keys() == migration_tables.keys(), (
+        f"table set drift — schema.sql has {schema_tables.keys() - migration_tables.keys()} extra, "
+        f"migrations have {migration_tables.keys() - schema_tables.keys()} extra"
+    )
+    for table, schema_cols in schema_tables.items():
+        migration_cols = migration_tables[table]
+        assert schema_cols == migration_cols, (
+            f"column drift on {table}: "
+            f"schema.sql has {schema_cols - migration_cols} extra, "
+            f"migrations have {migration_cols - schema_cols} extra"
+        )
+
+
+def test_migrations_have_no_transaction_wrapper() -> None:
+    """InsForge runs migrations inside a backend-managed transaction.
+
+    Per the insforge-cli skill: 'do not put BEGIN, COMMIT, or ROLLBACK in
+    migration files.' schema.sql legitimately has its own BEGIN/COMMIT
+    because provision.sh runs it as a standalone script; migrations must not.
+    """
+    if not MIGRATIONS_DIR.exists():
+        return
+    for path in MIGRATIONS_DIR.glob("*.sql"):
+        sql = path.read_text()
+        # Strip SQL comments first so commentary mentioning BEGIN/COMMIT is ignored.
+        stripped = re.sub(r"--[^\n]*", "", sql)
+        for kw in ("BEGIN", "COMMIT", "ROLLBACK"):
+            assert not re.search(rf"(?mi)^\s*{kw}\s*;", stripped), (
+                f"{path.name} contains `{kw};` — migrations run inside a "
+                f"backend-managed transaction; remove the wrapper."
+            )
 
 
 def test_referential_integrity_fks_present() -> None:

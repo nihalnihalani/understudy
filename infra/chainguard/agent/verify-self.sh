@@ -2,7 +2,7 @@
 # Agent container pre-start verifier (architecture.md §13 "cosign verify fails").
 #
 # Runs inside the agent image at launch. Resolves the image's OWN digest via the
-# cgroup / env that the runtime (Fly Machines, launchd) exports, then re-runs
+# cgroup / env that the runtime (Fly.io Machines) exports, then re-runs
 # cosign verify against Fulcio + Rekor. Non-zero exit = refuse to start.
 #
 # This is belt-and-braces: the orchestrator already verifies before scheduling,

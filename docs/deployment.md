@@ -1,6 +1,6 @@
 # Deployment
 
-End-to-end walkthrough of how a commit to `main` becomes a running, signed, SLSA L2-verified agent on Fly.io + Mac Mini. Mirrors architecture.md §12.
+End-to-end walkthrough of how a commit to `main` becomes a running, signed, SLSA L2-verified agent on Fly.io. Mirrors architecture.md §12.
 
 ```mermaid
 flowchart LR
@@ -11,8 +11,8 @@ flowchart LR
     CS[cosign keyless<br/>Fulcio OIDC]
     RK[Rekor<br/>transparency log]
     REG[GHCR<br/>ghcr.io/...-agent-base]
-    FLY[Fly Machines<br/>iad + sjc<br/>verify pre-start]
-    MM[Mac Mini<br/>launchd<br/>verify pre-launch]
+    FLY[Fly.io Machines<br/>iad + sjc<br/>verify pre-start]
+    TF[TinyFish hosted<br/>browser cloud]
     INS[InsForge 2.0<br/>Remote OAuth MCP pool]
     R8[Redis 8 Cloud<br/>AMS + Vector Sets + LangCache]
     CM[Cosmo Cloud<br/>MCP Gateway + EDFS]
@@ -20,12 +20,10 @@ flowchart LR
     GH --> CG --> SB --> SL --> CS --> RK
     CS --> REG
     REG --> FLY
-    REG --> MM
     FLY --> INS
     FLY --> R8
     FLY --> CM
-    MM  --> INS
-    MM  --> R8
+    FLY --> TF
 ```
 
 ## 1. Build + sign (GitHub Actions)
@@ -75,17 +73,11 @@ If either verify exits non-zero, uvicorn never starts, the `http_checks` flatlin
 
 Per-agent machines are rendered from `infra/fly/agent.fly.toml.tmpl` by the synthesis worker, one machine per generated agent, image pinned by digest.
 
-## 4. Deploy (Mac Mini)
+## 4. Browser runtime (TinyFish hosted cloud)
 
-The Mac Mini hosts the TinyFish headful Chromium pool. `infra/fly/macmini.plist` is a LaunchDaemon that runs `/usr/local/bin/macmini-start.sh`, which performs the same two cosign commands before `exec tinyfish serve`. `KeepAlive=true` + `ThrottleInterval=30` means a verify failure hot-loops (intentional — better than silently starting).
+Generated agents **do not run browsers locally**. When the agent core loop needs to drive a browser, it shells out via `tinyfish run --skill {name}@{version} --script {path}` which calls TinyFish's hosted browser cloud over HTTPS. TinyFish owns the browser pool; we own the API key (`TINYFISH_API_KEY`, stored via `fly secrets set`).
 
-Install:
-
-```bash
-sudo cp infra/fly/macmini-start.sh /usr/local/bin/
-sudo cp infra/fly/macmini.plist /Library/LaunchDaemons/com.understudy.tinyfish.plist
-sudo launchctl bootstrap system /Library/LaunchDaemons/com.understudy.tinyfish.plist
-```
+No second runtime surface to operate, no launchd wrappers, no per-host pre-start verify outside of Fly.io. The cosign verify at Fly pre-start + the agent container's own `verify-self.sh` ENTRYPOINT are the complete verification surface.
 
 ## 5. Managed services
 
@@ -102,7 +94,7 @@ All three are external; no deploy step from this repo — we only wire credentia
 1. `./infra/insforge-pool/provision.sh` → 3 slots in `insforge:pool:available`.
 2. `python scripts/prewarm_demo.py` → LangCache + AMS + Vector Sets + Dream Query cache warm.
 3. `flyctl deploy --config infra/fly/fly.toml` → iad + sjc green.
-4. `sudo launchctl kickstart -k system/com.understudy.tinyfish` → Mac Mini respawns with fresh verify.
+4. `curl -sf https://api.tinyfish.ai/v1/health -H "Authorization: Bearer $TINYFISH_API_KEY"` → browser cloud reachable.
 5. `scripts/verify_release.sh` from a clean shell → two green checks.
 
 If step 5 fails, the pitch fails. Run it from the actual stage laptop before the session — Rekor + Fulcio are both internet-dependent.
@@ -113,7 +105,7 @@ If step 5 fails, the pitch fails. Run it from the actual stage laptop before the
 
 | Row | Where it lands in deploy |
 |---|---|
-| cosign verify fails | `fly-start.sh` / `macmini-start.sh` / `agent/verify-self.sh` — all three refuse to start. |
+| cosign verify fails | `fly-start.sh` / `agent/verify-self.sh` — both refuse to start. |
 | InsForge MCP OAuth drift | `provision.sh` re-run refreshes slot credentials in Redis. |
 | Chromium deps on distroless | We use wolfi-base + apk shared libs instead of pure distroless (see `Dockerfile.wolfi`). |
 | Live Gemini >8s on stage | Hermetic demo mode via `DEMO_MODE=replay` (set on the Fly app). |

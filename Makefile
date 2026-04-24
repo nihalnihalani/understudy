@@ -1,4 +1,4 @@
-.PHONY: help install install-py install-web dev api worker web test test-py typecheck lint clean redis docker-up docker-down
+.PHONY: help install install-py install-web dev api worker web test test-py typecheck lint clean redis docker-up docker-down chainguard-init
 
 PY ?= python3
 PIP ?= $(PY) -m pip
@@ -50,3 +50,6 @@ docker-down: ## Tear down docker-compose
 
 clean: ## Remove caches and tmp uploads
 	rm -rf .pytest_cache .ruff_cache **/__pycache__ /tmp/understudy-recordings
+
+chainguard-init: ## Bootstrap Chainguard Libraries (PyPI + npm mirrors). Requires a Chainguard account + org.
+	@scripts/chainguard_init.sh
