@@ -4,6 +4,7 @@
 
 import type {
   Agent,
+  AgentProtocols,
   ApiFullAttestation,
   HealthResponse,
   ReplayResponse,
@@ -73,6 +74,11 @@ export const api = {
   getAgent: (id: string) => request<Agent>(`/agents/${id}`),
   getAttestation: (id: string) =>
     request<ApiFullAttestation>(`/agents/${id}/attestation`),
+  // Cosmo Connect surface for an agent (graphql / grpc / rest / openapi).
+  // Returns 404 (ApiError) when the agent has no Trusted Documents cached
+  // yet — callers should treat that as "no chips to render" and degrade.
+  getAgentProtocols: (id: string) =>
+    request<AgentProtocols>(`/agents/${id}/protocols`),
   replay: (synthId: string) =>
     request<ReplayResponse>(`/demo/replay/${synthId}`, {
       method: "POST",
