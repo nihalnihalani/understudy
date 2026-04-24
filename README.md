@@ -93,6 +93,34 @@ See [architecture.md](./architecture.md) for full diagrams (component, synthesis
 
 ## Quickstart (for teammates)
 
+> **TL;DR — one command:**
+> ```bash
+> ./run.sh             # dev mode: foreground, tails logs, ctrl-c to stop everything
+> ./run.sh --replay    # hermetic DEMO_MODE=replay (no live Gemini calls needed)
+> ./run.sh status      # show what's up + tail recent logs
+> ./run.sh stop        # kill anything run.sh started
+> ./run.sh logs api    # tail -f logs/api.log  (or web | worker)
+> ```
+> The launcher does preflight (python 3.11+, node 20+, `.env` + `GEMINI_API_KEY`),
+> idempotent installs (pip + npm), starts Redis (via brew or docker fallback),
+> and brings up the API (`:8080`), synthesis worker, and Vite dev server (`:5173`)
+> with health probes on each. State lives in `.runsh-state`; logs in `logs/`.
+
+> **Python install (manual path).** A virtualenv is recommended:
+> `python3 -m venv .venv && source .venv/bin/activate && pip install -e '.[dev]'`.
+> If you skip the venv on a managed Python (Homebrew / Debian PEP-668),
+> the laptop fallback is `pip install -e '.[dev]' --break-system-packages`.
+> The Chainguard wolfi-base Dockerfile uses the same flag because its
+> system Python is "managed."
+
+> **Pinning policy.** `[project] dependencies` are runtime-only — anything
+> imported by `apps/`, `understudy/`, or `scripts/` at runtime. Test-only,
+> lint, and template-rendering libs (`pytest`, `pytest-asyncio`, `ruff`,
+> `mypy`, `fakeredis`, `jinja2`, `jsonschema`) live in
+> `[project.optional-dependencies].dev` so prod images stay minimal.
+> Versions use `>=` lower bounds (no upper caps) for hackathon
+> reproducibility while still letting bug-fix releases through.
+
 ```bash
 # 1. Clone + install
 git clone https://github.com/nihalnihalani/understudy
