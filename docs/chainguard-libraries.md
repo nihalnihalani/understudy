@@ -148,9 +148,13 @@ docker run --rm understudy-agent-base:cg-libs pip show fastapi | head -5
 
 ## JavaScript setup
 
-Covers `apps/web/` (Vite dev build) and `apps/agent-template/` (generated agent
-runtime). Both have committed `.npmrc.example` templates; the real `.npmrc`
-files are `.gitignored`.
+**Local dev uses the public npm registry.** Chainguard's rebuilt-from-source packages are pulled into the production **agent image only**, via the Dockerfile `NPM_CHAINGUARD_AUTH` build-arg. This mirrors how pip works in this project — no root `pip.conf` forcing local Python through Chainguard either.
+
+### Why not a root `.npmrc`?
+
+Chainguard's npm mirror lags public npm by days-to-weeks on fresh releases, and npm has no multi-registry fallback primitive (unlike pip's `extra-index-url`). Scoped registries only help for scoped packages; an unscoped transitive dep that isn't mirrored (e.g. `posthog-node` inside `@insforge/cli`) will `ETARGET` or `404` and wedge the install. Forcing local dev through it breaks routine `npx` and `npm install` flows. Production agent images still ship rebuilt-from-source packages because the Dockerfile handles it at build time.
+
+A `.npmrc.example` template is committed for anyone who wants to force local npm through Chainguard anyway (optional, advanced).
 
 ### Enable the ecosystem + mint the token
 
@@ -159,37 +163,24 @@ chainctl libraries entitlements create --ecosystems=JAVASCRIPT   # idempotent
 chainctl auth pull-token --repository=javascript --ttl=720h
 ```
 
-Save the Username + Password. Compute the `_auth` value:
+`scripts/chainguard_init.sh` handles both of these automatically — prefer it.
+
+### Generated agents — `--build-arg` (the load-bearing path)
+
+[`infra/chainguard/Dockerfile.agent.tmpl`](../infra/chainguard/Dockerfile.agent.tmpl) accepts an `NPM_CHAINGUARD_AUTH` build arg. When set, the `@tinyfish/cli` global install and pinned-skill installs all pull from `libraries.cgr.dev/javascript/`. When unset, generated agents fall back to the public npm registry (local builds without a Chainguard account still work).
 
 ```bash
-echo -n 'USERNAME:PASSWORD' | base64
+# Easy path — source .env.chainguard (written by chainguard_init.sh)
+set -a; source .env.chainguard; set +a
+
+docker build \
+  --build-arg BASE_DIGEST="${BASE_DIGEST}" \
+  --build-arg NPM_CHAINGUARD_AUTH \
+  -f infra/chainguard/Dockerfile.agent.tmpl \
+  -t understudy-agent:cg-libs apps/agent-template/
 ```
 
-### Local dev — `.npmrc`
-
-```bash
-cp .npmrc.example .npmrc
-# Edit: replace {BASE64_OF_USERNAME_PASSWORD} with the base64 value above.
-# NOTE: understudy/ is an npm-workspaces monorepo — the .npmrc MUST live at
-# repo root. Per-workspace .npmrc files are silently ignored by npm.
-```
-
-Then `npm install` in either directory pulls from Chainguard's mirror.
-
-Quick check:
-
-```bash
-npm view react dist.tarball
-# → https://libraries.cgr.dev/javascript/react/-/react-18.x.x.tgz
-```
-
-### Generated agents — `--build-arg`
-
-[`infra/chainguard/Dockerfile.agent.tmpl`](../infra/chainguard/Dockerfile.agent.tmpl)
-accepts an `NPM_CHAINGUARD_AUTH` build arg. When set, both the `@tinyfish/cli`
-global install and pinned-skill installs pull from `libraries.cgr.dev/javascript/`.
-When unset, generated agents fall back to the public npm registry (so local
-development without a Chainguard account still works).
+Or compute inline:
 
 ```bash
 AUTH=$(echo -n "${JS_USERNAME}:${JS_PASSWORD}" | base64)
@@ -198,6 +189,25 @@ docker build \
   --build-arg NPM_CHAINGUARD_AUTH="${AUTH}" \
   -f infra/chainguard/Dockerfile.agent.tmpl \
   -t understudy-agent:cg-libs apps/agent-template/
+```
+
+### Optional — local npm through Chainguard
+
+Not recommended (see rationale above), but if you want to audit which packages are mirrored:
+
+```bash
+cp .npmrc.example .npmrc
+# Edit: replace {BASE64_OF_USERNAME_PASSWORD} with your base64 auth value.
+# .npmrc is .gitignored — never commit the real file.
+```
+
+Expect to add scoped fallbacks (`@scope:registry=https://registry.npmjs.org/`) for every sponsor/tool package that isn't mirrored. Unscoped transitive deps have no clean fallback — you'll fall back to `--registry=https://registry.npmjs.org/` on specific invocations.
+
+Quick check when enabled:
+
+```bash
+npm view react dist.tarball
+# → https://libraries.cgr.dev/javascript/react/-/react-18.x.x.tgz
 ```
 
 ### CI — GitHub Actions
@@ -222,13 +232,12 @@ Add two more secrets and feed the base64 auth into the build:
 
 ### Token rotation (JS)
 
-Same 30-day TTL. Re-run `chainctl auth pull-token --repository=javascript` and
-update:
-- local `apps/*/.npmrc` files
+Same 30-day TTL. Re-run `chainctl auth pull-token --repository=javascript` and update:
+- `.env.chainguard` (local Docker build env; overwritten automatically if you re-run `scripts/chainguard_init.sh`)
 - `CHAINGUARD_JAVASCRIPT_*` GitHub Actions secrets
+- optional local `.npmrc` if you opted into local Chainguard npm
 
-Or just run `scripts/chainguard_init.sh` again — it rotates both ecosystems
-atomically.
+Or just run `scripts/chainguard_init.sh` again — it rotates both ecosystems atomically, overwrites `.env.chainguard`, and removes any stale root `.npmrc` left by earlier runs.
 
 ---
 
@@ -238,7 +247,8 @@ atomically.
 |---|---|
 | `403 Forbidden` from `libraries.cgr.dev` | Username contains a `/` — must be URL-encoded to `_` in the URL. |
 | `401 Unauthorized` | Token expired (30-day TTL) or the username/password pair is stale. Re-run `chainctl auth pull-token --repository=python --ttl=720h`. |
-| `Package not found` for a niche dep | Chainguard's mirror is not 100% of PyPI. Keep `PIP_EXTRA_INDEX_URL=https://pypi.org/simple` as a fallback. |
+| `Package not found` for a niche dep (pip) | Chainguard's PyPI mirror is not 100% of PyPI. Keep `PIP_EXTRA_INDEX_URL=https://pypi.org/simple` as a fallback. |
+| `404 Not Found` on `npx <scoped/pkg>` or `ETARGET` on an unscoped transitive dep | Chainguard's npm mirror doesn't have the package or version. Local dev **should not route through Chainguard** — remove any root `.npmrc` (re-run `scripts/chainguard_init.sh` to purge a stale one). Chainguard npm applies in the Dockerfile build path via `NPM_CHAINGUARD_AUTH`, not locally. |
 | `chainctl: command not found` after Homebrew install | `echo $PATH` — ensure `/opt/homebrew/bin` (Apple Silicon) or `/usr/local/bin` is on it. |
 
 ---
