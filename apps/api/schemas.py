@@ -198,3 +198,26 @@ class ReplayResponse(BaseModel):
     synthesis_run_id: UUID
     served_from: str
     payload: dict[str, Any]
+
+
+class FullAttestation(BaseModel):
+    """GET /agents/{id}/attestation — bundle the Supply Chain page renders from.
+
+    Shape matches `FullAttestation` in apps/web/src/components/CosignReceipt.tsx. Rekor +
+    Fulcio cert fields are first-class so the UI doesn't have to derive them from the
+    workflow-identity convention (governance reviewers check these on stage).
+    """
+
+    agent: Agent
+    image: Image
+    slsa: SlsaAttestation
+    sbom: Sbom
+    rekor_log_index: int
+    rekor_url: str
+    rekor_uuid: str
+    rekor_integrated_time: datetime
+    certificate_identity: str
+    certificate_oidc_issuer: str
+    subject_alt_name: str
+    cert_not_before: datetime
+    cert_not_after: datetime

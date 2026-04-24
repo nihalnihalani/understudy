@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import AsyncIterator
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
@@ -72,22 +73,48 @@ class RedisClient:
         if conn is None:
             return []
         entries = await conn.xrange(synth_stream_key(run_id))
-        out: list[dict[str, Any]] = []
-        for _, fields in entries:
-            raw = fields.get("data") or "{}"
-            try:
-                data = json.loads(raw)
-            except json.JSONDecodeError:
-                data = {"_raw": raw}
-            out.append(
-                {
-                    "ts": fields.get("ts"),
-                    "stage": fields.get("stage", ""),
-                    "message": fields.get("message", ""),
-                    "data": data,
-                }
-            )
-        return out
+        return [self._decode_entry(fields) for _, fields in entries]
+
+    async def tail_trace(
+        self, run_id: UUID | str, block_ms: int = 15_000
+    ) -> "AsyncIterator[dict[str, Any]]":
+        """Yield existing + new trace events via XREAD BLOCK — feeds the SSE endpoint.
+
+        Replays the full history first (so a late subscriber doesn't miss the early
+        keyframe/ingest events), then switches to tailing from `$`.
+        """
+        conn = await self._get()
+        if conn is None:
+            return
+        key = synth_stream_key(run_id)
+        last_id = "0-0"
+        history = await conn.xrange(key)
+        for msg_id, fields in history:
+            last_id = msg_id
+            yield self._decode_entry(fields)
+        while True:
+            resp = await conn.xread({key: last_id}, block=block_ms, count=32)
+            if not resp:
+                yield {"_heartbeat": True}
+                continue
+            for _stream, entries in resp:
+                for msg_id, fields in entries:
+                    last_id = msg_id
+                    yield self._decode_entry(fields)
+
+    @staticmethod
+    def _decode_entry(fields: dict[str, Any]) -> dict[str, Any]:
+        raw = fields.get("data") or "{}"
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError:
+            data = {"_raw": raw}
+        return {
+            "ts": fields.get("ts"),
+            "stage": fields.get("stage", ""),
+            "message": fields.get("message", ""),
+            "data": data,
+        }
 
     async def enqueue_job(self, run_id: UUID | str, recording_uri: str) -> None:
         """XADD a job onto `jobs:synthesis` — consumed by apps/synthesis-worker (task #3)."""

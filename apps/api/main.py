@@ -1,10 +1,12 @@
 """Understudy Synthesis API — FastAPI ingest + orchestration surface.
 
-Endpoints (architecture.md §3, §8, §9, §14):
+Endpoints (architecture.md §3, §6, §8, §9, §14):
   POST /synthesize                  multipart mp4 upload → 202 + {synthesis_run_id}
   GET  /synthesis/{id}              status + full gemini traces + intent abstraction
+  GET  /synthesis/{id}/stream       SSE tail of `run:synth:{id}` stream (HUD live feed)
   GET  /agents                      list deployed agents (AGENT table, §8)
   GET  /agents/{id}                 single agent detail
+  GET  /agents/{id}/attestation     bundled {agent,image,slsa,sbom,rekor_*} (§6)
   GET  /healthz                     200 + sponsor-service probes
   POST /demo/replay/{synth_id}      reads us:replay:{synth_id} — demo kill-switch (§14)
 
@@ -15,12 +17,13 @@ from __future__ import annotations
 
 import os
 import time
+from collections.abc import AsyncIterator
 from datetime import datetime, timezone
 from typing import Callable
 from uuid import UUID, uuid4
 
 from fastapi import Depends, FastAPI, File, HTTPException, Request, Response, UploadFile, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from understudy.models import (
     GEMINI_ACTION_DETECTION,
@@ -32,6 +35,7 @@ from .redis_client import RedisClient, get_redis
 from .schemas import (
     Agent,
     DemoMode,
+    FullAttestation,
     HealthResponse,
     ReplayResponse,
     ServiceProbe,
@@ -188,6 +192,68 @@ async def get_synthesis(
     return SynthesisRunDetail(run=run, trace=trace)
 
 
+_TERMINAL_STATUSES = {SynthesisStatus.COMPLETED.value, SynthesisStatus.FAILED.value}
+
+
+@app.get("/synthesis/{id}/stream")
+async def stream_synthesis(
+    id: UUID,
+    request: Request,
+    redis: RedisClient = Depends(get_redis),
+    store: Store = Depends(get_store),
+) -> StreamingResponse:
+    """SSE feed of the `run:synth:{id}` Redis Stream — replays history then tails live.
+
+    Frontend pairs this with `new EventSource(...)` and expects one JSON-encoded
+    TraceEvent per `data:` frame. Heartbeats are emitted as SSE comments (`: ping`) so
+    intermediaries don't drop idle connections. A terminal run emits a final
+    `event: done\\ndata: {"status": "completed|failed"}` frame so the client can
+    close the EventSource without a trailing poll.
+    """
+    if store.get_run(id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"no synthesis run {id}")
+
+    async def event_gen() -> AsyncIterator[bytes]:
+        async for entry in redis.tail_trace(id):
+            if await request.is_disconnected():
+                return
+            if entry.get("_heartbeat"):
+                yield b": ping\n\n"
+                continue
+            ts_raw = entry.get("ts")
+            try:
+                ts = datetime.fromisoformat(ts_raw) if ts_raw else datetime.now(timezone.utc)
+            except ValueError:
+                ts = datetime.now(timezone.utc)
+            event = TraceEvent(
+                ts=ts,
+                stage=entry.get("stage", ""),
+                message=entry.get("message", ""),
+                data=entry.get("data"),
+            )
+            yield f"data: {event.model_dump_json()}\n\n".encode("utf-8")
+
+            # Worker convention: `stage == "status"` carries the new SynthesisStatus in
+            # `data.status`. When it lands on a terminal state, emit `done` and stop.
+            data = entry.get("data") or {}
+            if event.stage == "status" and data.get("status") in _TERMINAL_STATUSES:
+                yield (
+                    f"event: done\ndata: "
+                    f'{{"status": "{data["status"]}", "synthesis_run_id": "{id}"}}\n\n'
+                ).encode("utf-8")
+                return
+
+    return StreamingResponse(
+        event_gen(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",  # bypass nginx buffering if fronted
+            "Connection": "keep-alive",
+        },
+    )
+
+
 @app.get("/agents", response_model=list[Agent])
 async def list_agents(store: Store = Depends(get_store)) -> list[Agent]:
     """List all deployed agents — AGENT table (§8)."""
@@ -201,6 +267,15 @@ async def get_agent(id: UUID, store: Store = Depends(get_store)) -> Agent:
     if agent is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"no agent {id}")
     return agent
+
+
+@app.get("/agents/{id}/attestation", response_model=FullAttestation)
+async def get_agent_attestation(id: UUID, store: Store = Depends(get_store)) -> FullAttestation:
+    """Bundle the §6 supply-chain receipt into one payload for CosignReceipt.tsx."""
+    bundle = store.get_attestation(id)
+    if bundle is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"no agent {id}")
+    return bundle
 
 
 @app.post("/demo/replay/{synth_id}", response_model=ReplayResponse)
