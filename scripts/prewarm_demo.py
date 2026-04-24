@@ -15,6 +15,7 @@ import os
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
@@ -24,7 +25,6 @@ if str(_ROOT) not in sys.path:
 
 from understudy.memory.client import MemoryClient  # noqa: E402
 from understudy.memory.langcache import LangCache, prompt_hash  # noqa: E402
-from understudy.memory.schema import MemoryTurn  # noqa: E402
 
 
 # --- ANSI color helpers (no deps) --------------------------------------------

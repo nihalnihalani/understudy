@@ -8,7 +8,6 @@ Covers the full Dream Query loop end-to-end against:
 
 from __future__ import annotations
 
-import asyncio
 import json
 import sys
 from pathlib import Path
@@ -21,9 +20,9 @@ DRIVER_DIR = ROOT / "apps" / "cosmo-mcp-driver"
 
 sys.path.insert(0, str(DRIVER_DIR))
 
-from clients import CosmoMockMCP, CosmoStdioMCP  # type: ignore[import-not-found]
-from driver import CosmoDreamQuery  # type: ignore[import-not-found]
-from naming import (  # type: ignore[import-not-found]
+from clients import CosmoMockMCP, CosmoStdioMCP  # type: ignore[import-not-found]  # noqa: E402
+from driver import CosmoDreamQuery  # type: ignore[import-not-found]  # noqa: E402
+from naming import (  # type: ignore[import-not-found]  # noqa: E402
     InvalidSubgraphName,
     default_routing_url,
     validate_subgraph_name,
@@ -210,8 +209,6 @@ async def test_propose_schema_change_rejects_invalid_name_before_calling_mcp() -
 
 def test_cli_register_shells_out_to_register_script(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """End-to-end CLI test: `register` should write the SDL file and invoke the script."""
-    import os
-
     sys.path.insert(0, str(DRIVER_DIR))
     import cli  # type: ignore[import-not-found]
 

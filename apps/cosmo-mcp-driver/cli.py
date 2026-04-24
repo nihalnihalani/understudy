@@ -119,7 +119,7 @@ def _print_composition(version_dict: dict) -> None:
 
 async def _cmd_dream(args: argparse.Namespace) -> int:
     run_id = args.run_id or f"demo-{uuid.uuid4().hex[:8]}"
-    print(_cyan(f"▸ cosmo mcp dream_query  ") + _dim(f"run_id={run_id}"))
+    print(_cyan("▸ cosmo mcp dream_query  ") + _dim(f"run_id={run_id}"))
     print(_dim(f"  desired operation: {args.operation}"))
     async with CosmoDreamQuery(run_id=run_id) as dq:
         delta = await dq.dream_query(args.operation)
@@ -223,7 +223,7 @@ async def _cmd_register(args: argparse.Namespace) -> int:
             if rc != 0:
                 print(_red(f"register_agent_subgraph.sh exited {rc}"), file=sys.stderr)
                 return rc
-            print(_green("composition OK") + _dim(f"  (via register_agent_subgraph.sh)"))
+            print(_green("composition OK") + _dim("  (via register_agent_subgraph.sh)"))
 
         if args.edfs_fields:
             fields = [f.strip() for f in args.edfs_fields.split(",") if f.strip()]

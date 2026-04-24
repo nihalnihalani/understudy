@@ -6,8 +6,6 @@ breaks, the 2:30 demo beat has no cache to hit.
 
 from __future__ import annotations
 
-import numpy as np
-
 from scripts.prewarm_demo import (
     DEMO_AGENT,
     DEMO_RUN_ID,
