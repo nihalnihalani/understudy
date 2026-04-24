@@ -1,7 +1,115 @@
-# Cosmo Router config — generated agents register as subgraphs at synthesis time.
-# Populated by apps/cosmo-mcp-driver after schema_change_proposal_workflow completes.
-# See architecture.md §7.
+# Cosmo Router configuration — Understudy federation gateway.
+# Loaded by ghcr.io/wundergraph/cosmo-router at container start.
+# Architecture: architecture.md §4 (EDFS), §7 (headless MCP), §12 (deployment).
+#
+# Secrets are injected from the environment via ${VAR} substitution — never
+# hardcode credentials in this file.
+
 version: "1"
-listen_addr: "0.0.0.0:3002"
-# TODO(task #6): subgraph manifest gets rewritten each time a new agent is published.
-subgraphs: []
+
+# Public-facing GraphQL endpoint. Mapped to host :4000 in docker-compose.
+listen_addr: "0.0.0.0:4000"
+graphql_path: "/graphql"
+
+# --- Supergraph ----------------------------------------------------------
+# The router polls supergraph.json on disk. Composition runs in the
+# register_agent_subgraph.sh flow (wgc supergraph compose -> write file).
+# When Cosmo Cloud is reachable, execution_config can be swapped to a
+# cloud-polled variant; offline/local dev uses the on-disk file.
+execution_config:
+  file:
+    path: "/etc/cosmo-router/supergraph.json"
+    watch: true
+    watch_interval: "5s"
+
+# --- Authentication ------------------------------------------------------
+# Bearer token validated against InsForge's remote OAuth MCP JWKS. Tokens
+# are issued by InsForge 2.0 per architecture.md §5; the router rejects
+# unauthenticated requests except for introspection and /health.
+authentication:
+  providers:
+    - name: "insforge-oauth"
+      jwks:
+        url: "${INSFORGE_OAUTH_JWKS_URL}"
+        refresh_interval: "1m"
+      header_names: ["Authorization"]
+      header_value_prefixes: ["Bearer"]
+      audiences:
+        - "${INSFORGE_OAUTH_AUDIENCE}"
+      issuer: "${INSFORGE_OAUTH_ISSUER}"
+
+authorization:
+  require_authentication: true
+
+# --- Event-Driven Federated Subscriptions (EDFS) -------------------------
+# architecture.md §4 — EDFS Kafka/NATS bindings registered during the
+# Dream Query schema_change_proposal_workflow step. Subgraphs that declare
+# @edfs__kafkaSubscribe / @edfs__natsSubscribe resolve through these
+# providers. Both brokers are configured so Dream Query can choose per-topic.
+events:
+  providers:
+    kafka:
+      - id: "understudy-kafka"
+        brokers:
+          - "${EDFS_KAFKA_BROKERS}"
+        authentication:
+          sasl_plain:
+            username: "${EDFS_KAFKA_SASL_USERNAME}"
+            password: "${EDFS_KAFKA_SASL_PASSWORD}"
+        tls:
+          enabled: true
+    nats:
+      - id: "understudy-nats"
+        url: "${EDFS_NATS_URL}"
+        authentication:
+          token: "${EDFS_NATS_TOKEN}"
+
+# --- CORS ---------------------------------------------------------------
+# Frontend (apps/ui) embeds Cosmo Studio + hits /graphql directly from the
+# browser during the live demo.
+cors:
+  allow_origins:
+    - "${FRONTEND_ORIGIN}"
+    - "${STUDIO_URL}"
+  allow_methods:
+    - "GET"
+    - "POST"
+    - "OPTIONS"
+  allow_headers:
+    - "Authorization"
+    - "Content-Type"
+    - "Apollo-Require-Preflight"
+  allow_credentials: true
+
+# --- Observability ------------------------------------------------------
+telemetry:
+  service_name: "understudy-cosmo-router"
+  tracing:
+    enabled: true
+    sampling_rate: 1.0
+  metrics:
+    prometheus:
+      enabled: true
+      listen_addr: "0.0.0.0:8088"
+      path: "/metrics"
+
+# --- Router engine tuning ----------------------------------------------
+engine:
+  enable_single_flight: true
+  enable_request_tracing: true
+  execution_plan_cache_size: 1024
+  websocket_client_poll_timeout: "1s"
+
+# --- Cache (shared Redis for query-plan + APQ) --------------------------
+# Uses the same Redis instance as AMS (architecture.md §9) but a distinct
+# logical db to avoid keyspace collisions.
+redis:
+  urls:
+    - "${REDIS_URL}"
+  key_prefix: "cosmo_router:"
+
+# --- Health / readiness -------------------------------------------------
+health_check:
+  path: "/health"
+readiness_check:
+  path: "/health/ready"

@@ -15,15 +15,42 @@ services:
       retries: 10
 
   cosmo-router:
-    # Placeholder — real router image pinned in apps/cosmo-router/.
+    # Federation gateway — see apps/cosmo-router/ (task #6, architecture.md §7).
     image: ghcr.io/wundergraph/cosmo-router:latest
     container_name: understudy-cosmo-router
     ports:
-      - "3002:3002"
+      - "4000:4000"
+      - "8088:8088"   # Prometheus scrape endpoint
     environment:
-      - DEV_MODE=true
+      - CONFIG_PATH=/etc/cosmo-router/config.yaml
+      - DEV_MODE=${COSMO_ROUTER_DEV_MODE:-false}
+      - LOG_LEVEL=${COSMO_ROUTER_LOG_LEVEL:-info}
+      # Supergraph polling + auth + EDFS — consumed via ${VAR} substitution
+      # in config.yaml. Sourced from the root .env file below.
+      - REDIS_URL=redis://redis:6379/1
+      - INSFORGE_OAUTH_JWKS_URL=${INSFORGE_OAUTH_JWKS_URL}
+      - INSFORGE_OAUTH_ISSUER=${INSFORGE_OAUTH_ISSUER}
+      - INSFORGE_OAUTH_AUDIENCE=${INSFORGE_OAUTH_AUDIENCE}
+      - EDFS_KAFKA_BROKERS=${EDFS_KAFKA_BROKERS}
+      - EDFS_KAFKA_SASL_USERNAME=${EDFS_KAFKA_SASL_USERNAME}
+      - EDFS_KAFKA_SASL_PASSWORD=${EDFS_KAFKA_SASL_PASSWORD}
+      - EDFS_NATS_URL=${EDFS_NATS_URL}
+      - EDFS_NATS_TOKEN=${EDFS_NATS_TOKEN}
+      - FRONTEND_ORIGIN=${FRONTEND_ORIGIN:-http://localhost:3000}
+      - STUDIO_URL=${STUDIO_URL:-https://cosmo.wundergraph.com/studio}
+    env_file:
+      - .env
+    volumes:
+      - ./apps/cosmo-router/config.yaml:/etc/cosmo-router/config.yaml:ro
+      - ./apps/cosmo-router/supergraph.json:/etc/cosmo-router/supergraph.json:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:4000/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
 
   synthesis-api:
     # Placeholder — built from apps/api/ once Dockerfile lands (task #2).
@@ -33,7 +60,7 @@ services:
       - "8080:8080"
     environment:
       - REDIS_URL=redis://redis:6379
-      - COSMO_ROUTER_URL=http://cosmo-router:3002
+      - COSMO_ROUTER_URL=http://cosmo-router:4000
       - DEMO_MODE=${DEMO_MODE:-live}
     env_file:
       - .env

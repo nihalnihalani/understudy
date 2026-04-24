@@ -1,0 +1,78 @@
+# agent_beta — seed subgraph for the "Salesforce lead enrichment" demo agent.
+# Synthesized from a 60s recording of an SDR opening a lead, running a
+# lookup, and attaching enrichment notes. Keep in sync with the runtime
+# manifest emitted by Gemini 3 Flash (architecture.md §10c) — the
+# generated agent serves this SDL from http://agent_beta:4001/graphql.
+
+extend schema
+  @link(
+    url: "https://specs.apollo.dev/federation/v2.5"
+    import: ["@key", "@shareable", "@tag"]
+  )
+  @link(
+    url: "https://cosmo.wundergraph.com/schemas/edfs/v0.1"
+    import: ["@edfs__natsSubscribe"]
+  )
+
+type Lead @key(fields: "id") {
+  id: ID!
+  email: String!
+  fullName: String!
+  company: Company
+  score: Int!
+  stage: LeadStage!
+  enrichments: [Enrichment!]!
+  updatedAt: String!
+}
+
+type Company @key(fields: "domain") {
+  domain: String!
+  name: String!
+  employeeCount: Int
+  industry: String
+}
+
+type Enrichment {
+  source: EnrichmentSource!
+  field: String!
+  value: String!
+  confidence: Float!
+  attachedAt: String!
+}
+
+enum EnrichmentSource {
+  CLEARBIT
+  LINKEDIN
+  CRUNCHBASE
+  UNDERSTUDY_MEMORY
+}
+
+enum LeadStage {
+  NEW
+  WORKING
+  QUALIFIED
+  UNQUALIFIED
+  CONVERTED
+}
+
+input LeadEnrichmentInput {
+  leadId: ID!
+  includeSources: [EnrichmentSource!]
+  minConfidence: Float = 0.6
+}
+
+type Query {
+  lead(id: ID!): Lead
+  searchLeads(query: String!, first: Int = 10): [Lead!]!
+}
+
+type Mutation {
+  enrichLead(input: LeadEnrichmentInput!): Lead!
+}
+
+# NATS subject for live lead updates pushed from the CRM — bound during
+# register_edfs_events (architecture.md §4).
+type Subscription {
+  leadUpdated(id: ID!): Lead!
+    @edfs__natsSubscribe(subjects: ["understudy.agent_beta.leads.*"], providerId: "understudy-nats")
+}

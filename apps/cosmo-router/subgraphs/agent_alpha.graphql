@@ -1,0 +1,69 @@
+# agent_alpha — seed subgraph for the "Shopify order export" demo agent.
+# Synthesized from a 60s screen recording of an operator filtering orders
+# and exporting a CSV. Keep in sync with the runtime manifest emitted by
+# Gemini 3 Flash (architecture.md §10c) — the generated agent serves this
+# SDL from http://agent_alpha:4001/graphql.
+
+extend schema
+  @link(
+    url: "https://specs.apollo.dev/federation/v2.5"
+    import: ["@key", "@shareable", "@tag"]
+  )
+  @link(
+    url: "https://cosmo.wundergraph.com/schemas/edfs/v0.1"
+    import: ["@edfs__kafkaSubscribe", "@edfs__kafkaPublish"]
+  )
+
+type Order @key(fields: "id") {
+  id: ID!
+  status: OrderStatus!
+  totalCents: Int!
+  currency: String!
+  placedAt: String!
+  customerEmail: String!
+  lineItems: [OrderLineItem!]!
+}
+
+type OrderLineItem {
+  sku: String!
+  quantity: Int!
+  unitPriceCents: Int!
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  FULFILLED
+  CANCELLED
+  REFUNDED
+}
+
+input OrderFilter {
+  status: OrderStatus
+  placedAfter: String
+  placedBefore: String
+  minTotalCents: Int
+}
+
+type OrderExport {
+  exportId: ID!
+  rowCount: Int!
+  signedUrl: String!
+  expiresAt: String!
+}
+
+type Query {
+  orders(filter: OrderFilter, first: Int = 25, after: String): [Order!]!
+  order(id: ID!): Order
+}
+
+type Mutation {
+  exportOrdersCsv(filter: OrderFilter!): OrderExport!
+}
+
+# Live fulfilment events — Dream Query registered the topic binding in the
+# register_edfs_events step (architecture.md §4).
+type Subscription {
+  orderStatusChanged(id: ID!): Order!
+    @edfs__kafkaSubscribe(topics: ["understudy.agent_alpha.orders"], providerId: "understudy-kafka")
+}
