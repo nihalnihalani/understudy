@@ -13,7 +13,7 @@ Referenced by `apps/cosmo-router/config.yaml`, `docker-compose.yml`, and
 `scripts/register_agent_subgraph.sh` via `${VAR}` substitution.
 
 InsForge 2.0 (API-key auth — `INSFORGE_OAUTH_*` is obsolete):
-- `INSFORGE_PROJECT_URL` — project base URL
+- `INSFORGE_URL` — project base URL (same as `.insforge/project.json` `oss_host`)
 - `INSFORGE_API_KEY` — admin bearer token for `POST /api/database/records/…`
 
 EDFS Kafka provider:
