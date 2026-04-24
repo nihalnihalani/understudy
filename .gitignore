@@ -39,3 +39,6 @@ pip.conf
 .npmrc
 !.npmrc.example
 chainguard-setup.md
+
+# Local debug logs from scripts/dev-debug.sh
+logs/
