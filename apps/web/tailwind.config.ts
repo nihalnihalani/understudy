@@ -1,8 +1,7 @@
 import type { Config } from "tailwindcss";
 
-// Tokens mirror the Stitch design system "Understudy Enterprise Governance".
-// Any change here must also land in apps/web/src/styles/design-system.md
-// and the Stitch project's `designMd`.
+// Tokens mirror TRUE's "CBC // Command — Mission Telemetry" theme.
+// Amber is the signature accent; Fraunces (display, italic) marks emphasis.
 const config: Config = {
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
   darkMode: "class",
@@ -10,65 +9,95 @@ const config: Config = {
     extend: {
       colors: {
         canvas: {
-          DEFAULT: "#0A0B10",
-          surface: "#11131B",
-          elevated: "#171A24",
+          DEFAULT: "#070810",   // --bg
+          surface: "#10131c",   // --surface
+          elevated: "#151826",  // --surface-2
+          panel: "#12151f",     // --panel
         },
         border: {
-          subtle: "#1E2230",
-          strong: "#2A3042",
+          subtle: "rgba(255,255,255,0.06)",  // --hairline
+          strong: "rgba(255,255,255,0.14)",  // --hairline-strong
         },
         fg: {
-          DEFAULT: "#E6E8F0",
-          muted: "#9AA0B4",
-          faint: "#5F6478",
+          DEFAULT: "#e8ecf1",   // --text
+          muted: "#9aa3b2",     // --text-dim
+          faint: "#6b7282",     // --muted
+          dim: "#4a5163",       // --dim
         },
         primary: {
-          DEFAULT: "#6366F1",
-          700: "#4F46E5",
-          300: "#A5B4FC",
+          DEFAULT: "#ff9d2a",   // amber — TRUE's signature accent
+          700: "#e2861d",
+          300: "#ffb85e",
+          soft: "rgba(255, 157, 42, 0.12)",
         },
         accent: {
-          cyan: "#22D3EE",
-          emerald: "#34D399",
-          amber: "#FBBF24",
-          crimson: "#F87171",
+          amber: "#ff9d2a",
+          signal: "#5aa8ff",
+          cyan: "#5aa8ff",
+          emerald: "#57d28e",
+          ok: "#57d28e",
+          warn: "#ffb547",
+          bad: "#ff5c67",
+          crimson: "#ff5c67",
+          violet: "#b28bff",
         },
       },
       fontFamily: {
-        sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],
-        mono: ["JetBrains Mono", "ui-monospace", "SFMono-Regular", "monospace"],
+        display: [
+          "Fraunces",
+          "Iowan Old Style",
+          "Apple Garamond",
+          "Georgia",
+          "serif",
+        ],
+        sans: [
+          "IBM Plex Sans",
+          "SF Pro Text",
+          "ui-sans-serif",
+          "system-ui",
+          "sans-serif",
+        ],
+        mono: [
+          "IBM Plex Mono",
+          "SF Mono",
+          "ui-monospace",
+          "Menlo",
+          "monospace",
+        ],
       },
       borderRadius: {
-        sm: "4px",
-        DEFAULT: "8px",
-        md: "8px",
-        lg: "12px",
+        sm: "2px",
+        DEFAULT: "0",  // TRUE uses square panels
+        md: "2px",
+        lg: "0",
       },
       fontSize: {
-        "mono-xs": ["10px", { lineHeight: "1.6" }],
-        "mono-sm": ["11px", { lineHeight: "1.6" }],
+        "mono-xs": ["10px", { lineHeight: "1.6", letterSpacing: "0.16em" }],
+        "mono-sm": ["11px", { lineHeight: "1.6", letterSpacing: "0.08em" }],
         "mono-base": ["12px", { lineHeight: "1.6" }],
         "mono-lg": ["13px", { lineHeight: "1.6" }],
       },
       keyframes: {
-        pulseDot: {
-          "0%, 100%": { opacity: "0.4" },
-          "50%": { opacity: "1" },
+        pulse: {
+          "0%, 100%": { opacity: "1", transform: "scale(1)" },
+          "50%": { opacity: "0.45", transform: "scale(0.85)" },
         },
-        caret: {
-          "0%, 100%": { opacity: "0" },
-          "50%": { opacity: "1" },
+        heartbeat: {
+          "0%, 100%": { transform: "scale(1)", boxShadow: "0 0 0 0 rgba(87,210,142,0.55)" },
+          "20%": { transform: "scale(1.25)", boxShadow: "0 0 0 4px rgba(87,210,142,0.18)" },
+          "40%": { transform: "scale(1)", boxShadow: "0 0 0 8px rgba(87,210,142,0)" },
+          "60%": { transform: "scale(1.15)", boxShadow: "0 0 0 6px rgba(87,210,142,0.10)" },
+          "80%": { transform: "scale(1)", boxShadow: "0 0 0 0 rgba(87,210,142,0)" },
         },
-        meter: {
-          "0%": { backgroundPositionX: "0%" },
-          "100%": { backgroundPositionX: "200%" },
+        marquee: {
+          "0%": { transform: "translate3d(0,0,0)" },
+          "100%": { transform: "translate3d(-50%,0,0)" },
         },
       },
       animation: {
-        "pulse-dot": "pulseDot 1.2s ease-in-out infinite",
-        caret: "caret 1s step-end infinite",
-        meter: "meter 2s linear infinite",
+        "pulse-dot": "pulse 1.4s ease-in-out infinite",
+        heartbeat: "heartbeat 1.2s ease-in-out infinite",
+        marquee: "marquee 60s linear infinite",
       },
     },
   },

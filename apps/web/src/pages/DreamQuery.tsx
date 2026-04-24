@@ -28,12 +28,16 @@ export default function DreamQuery() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="text-[13px] font-mono text-fg-muted">
-          Synthesize ›{" "}
-          <span className="text-fg">run-{(id ?? "").slice(0, 8) || "demo"}</span>{" "}
-          › Dream Query
+    <div className="space-y-6">
+      <header className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-6 items-end pb-6 border-b border-border-subtle">
+        <div>
+          <div className="section-tag mb-3">Schema Synthesis — 003</div>
+          <h1 className="section-title">
+            Cosmo <em>dreams</em> the schema.
+          </h1>
+          <div className="font-mono text-[11px] text-fg-faint tracking-[0.12em] uppercase mt-3">
+            run-{(id ?? "demo").slice(0, 8)} · proposal: {report?.proposal_id ?? "—"}
+          </div>
         </div>
         <div className="flex gap-2">
           <a
@@ -48,7 +52,7 @@ export default function DreamQuery() {
             Re-run dream_query
           </button>
         </div>
-      </div>
+      </header>
 
       {/* Hero summary */}
       <section className="card px-5 py-4 grid grid-cols-[1fr_2fr_220px] gap-6 items-center">

@@ -19,9 +19,11 @@ import os
 import time
 from collections.abc import AsyncIterator
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Callable
 from uuid import UUID, uuid4
 
+import httpx
 from fastapi import Depends, FastAPI, File, HTTPException, Request, Response, UploadFile, status
 from fastapi.responses import JSONResponse, StreamingResponse
 
@@ -49,6 +51,11 @@ from .store import Store, get_store
 
 MAX_UPLOAD_BYTES = 200 * 1024 * 1024  # 200 MB — 60s 1080p mp4 fits comfortably
 ALLOWED_MIME = {"video/mp4", "application/octet-stream"}
+
+# Worker fetches uploads via `file://` until S3/R2 is wired in. Override with
+# UPLOAD_DIR for prod or shared volumes.
+UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", "/tmp/understudy-recordings"))
+COSMO_ROUTER_URL = os.getenv("COSMO_ROUTER_URL", "http://localhost:4000")
 
 
 def _demo_mode() -> DemoMode:
@@ -99,21 +106,41 @@ async def _log_if_synth_route(request: Request, stage: str, message: str, dur_ms
     await redis.append_trace(run_id, stage, message, {"duration_ms": dur_ms})
 
 
+async def _probe_http(name: str, url: str, path: str = "/health") -> ServiceProbe:
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as c:
+            resp = await c.get(url.rstrip("/") + path)
+        if 200 <= resp.status_code < 500:
+            return ServiceProbe(name=name, status="ok", detail=f"{url} -> {resp.status_code}")
+        return ServiceProbe(name=name, status="degraded", detail=f"{resp.status_code}")
+    except Exception as exc:
+        return ServiceProbe(name=name, status="degraded", detail=f"{type(exc).__name__}")
+
+
+def _probe_env(name: str, env_key: str, detail_when_set: str) -> ServiceProbe:
+    return ServiceProbe(
+        name=name,
+        status="ok" if os.getenv(env_key) else "mock",
+        detail=detail_when_set if os.getenv(env_key) else f"{env_key} unset",
+    )
+
+
 @app.get("/healthz", response_model=HealthResponse)
 async def healthz(redis: RedisClient = Depends(get_redis)) -> HealthResponse:
     """Reports API liveness + demo mode + sponsor-service status probes."""
     redis_ok = await redis.ping()
+    cosmo_probe = await _probe_http("cosmo_mcp", COSMO_ROUTER_URL)
     probes = [
         ServiceProbe(name="redis", status="ok" if redis_ok else "degraded"),
-        ServiceProbe(
-            name="gemini",
-            status="mock",
-            detail=f"{GEMINI_ACTION_DETECTION}, {GEMINI_INTENT_ABSTRACTION}, {GEMINI_SCRIPT_EMISSION}",
+        _probe_env(
+            "gemini",
+            "GEMINI_API_KEY",
+            f"{GEMINI_ACTION_DETECTION}, {GEMINI_INTENT_ABSTRACTION}, {GEMINI_SCRIPT_EMISSION}",
         ),
-        ServiceProbe(name="cosmo_mcp", status="mock", detail="Dream Query stub — see task #4"),
-        ServiceProbe(name="chainguard", status="mock", detail="cosign/Fulcio/Rekor stub — task #8"),
-        ServiceProbe(name="insforge", status="mock", detail="Remote OAuth MCP stub"),
-        ServiceProbe(name="tinyfish", status="mock", detail="CLI + Agent Skills — task #5"),
+        cosmo_probe,
+        _probe_env("chainguard", "GHCR_TOKEN", "cosign/Fulcio/Rekor configured"),
+        _probe_env("insforge", "INSFORGE_OAUTH_CLIENT_ID", "Remote OAuth MCP configured"),
+        _probe_env("tinyfish", "TINYFISH_API_KEY", "CLI + Agent Skills configured"),
     ]
     return HealthResponse(status="ok", demo_mode=_demo_mode(), services=probes)
 
@@ -133,23 +160,29 @@ async def synthesize(
             status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
             detail=f"expected video/mp4, got {recording.content_type}",
         )
+    recording_id = uuid4()
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    dest = UPLOAD_DIR / f"{recording_id}.mp4"
     size = 0
     chunk_size = 1024 * 1024
-    while True:
-        chunk = await recording.read(chunk_size)
-        if not chunk:
-            break
-        size += len(chunk)
-        if size > MAX_UPLOAD_BYTES:
-            raise HTTPException(
-                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                detail=f"upload exceeds {MAX_UPLOAD_BYTES} bytes",
-            )
+    with dest.open("wb") as fh:
+        while True:
+            chunk = await recording.read(chunk_size)
+            if not chunk:
+                break
+            size += len(chunk)
+            if size > MAX_UPLOAD_BYTES:
+                fh.close()
+                dest.unlink(missing_ok=True)
+                raise HTTPException(
+                    status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                    detail=f"upload exceeds {MAX_UPLOAD_BYTES} bytes",
+                )
+            fh.write(chunk)
     await recording.close()
 
-    recording_id = uuid4()
     run = store.create_run(recording_id=recording_id)
-    recording_uri = f"s3://understudy-recordings/{recording_id}.mp4"
+    recording_uri = f"file://{dest}"
 
     await redis.append_trace(
         run.id,

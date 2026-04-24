@@ -37,20 +37,22 @@ export default function SupplyChain() {
   void error;
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="text-[13px] font-mono text-fg-muted">
-          Agents ›{" "}
-          <span className="text-fg">
-            agent-{(id ?? agent.id).slice(0, 6)}
-          </span>{" "}
-          › Supply chain
+    <div className="space-y-6">
+      <header className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-6 items-end pb-6 border-b border-border-subtle">
+        <div>
+          <div className="section-tag mb-3">Supply Chain — 004</div>
+          <h1 className="section-title">
+            <em>Verified</em>, anchored, irrevocable.
+          </h1>
+          <div className="font-mono text-[11px] text-fg-faint tracking-[0.12em] uppercase mt-3">
+            agent-{(id ?? agent.id).slice(0, 6)} · cosign + fulcio + rekor
+          </div>
         </div>
         <div className="flex gap-2">
           <button type="button" className="btn btn-ghost">Copy digest</button>
-          <button type="button" className="btn btn-ghost">Export report (PDF)</button>
+          <button type="button" className="btn btn-ghost">Export PDF</button>
         </div>
-      </div>
+      </header>
 
       {/* Hero: cosign verify + slsa attest */}
       <div className="grid grid-cols-[3fr_2fr] gap-4">

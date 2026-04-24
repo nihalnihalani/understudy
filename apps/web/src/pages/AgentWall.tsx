@@ -12,6 +12,8 @@ import { AgentDrawer } from "@/components/AgentDrawer";
 import { DEMO_AGENTS, DEMO_AGENT_EXTRAS } from "@/fixtures/demo";
 import type { Agent } from "@/api/types";
 import type { AgentCardExtras } from "@/components/AgentCard";
+import { Section } from "@/components/Section";
+import { cn } from "@/lib/cn";
 
 export default function AgentWall() {
   const { data, isLoading } = useQuery({
@@ -44,12 +46,15 @@ export default function AgentWall() {
 
   const [q, setQ] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<"all" | "verified" | "failed">("all");
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    if (!needle) return agents;
     return agents.filter((a) => {
       const ex = extras[a.id];
+      if (statusFilter === "verified" && !ex?.verified) return false;
+      if (statusFilter === "failed" && ex?.verified) return false;
+      if (!needle) return true;
       return (
         a.id.toLowerCase().includes(needle) ||
         a.graphql_endpoint.toLowerCase().includes(needle) ||
@@ -58,7 +63,7 @@ export default function AgentWall() {
         (ex?.subgraph_id.toLowerCase().includes(needle) ?? false)
       );
     });
-  }, [agents, extras, q]);
+  }, [agents, extras, q, statusFilter]);
 
   const verifiedCount = agents.filter((a) => extras[a.id]?.verified).length;
   const totalRuns = agents.reduce(
@@ -71,23 +76,43 @@ export default function AgentWall() {
   const selectedExtras = selected ? extras[selected] : undefined;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-10">
+      <Section
+        tag="Deployment — 010"
+        title={<>Every <em>agent</em>, signed</>}
+        meta="SLSA L2 · COSIGN VERIFIED · FEDERATED"
+      >
+
       {/* Filter strip */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 mb-6">
         <div
           className="flex rounded border border-border-subtle bg-canvas-surface text-[12px] overflow-hidden"
           role="radiogroup"
           aria-label="Agent status filter"
         >
-          <button type="button" className="px-3 py-1.5 text-fg bg-canvas-elevated">
-            All {agents.length}
-          </button>
-          <button type="button" className="px-3 py-1.5 text-fg-muted">
-            verified {verifiedCount}
-          </button>
-          <button type="button" className="px-3 py-1.5 text-fg-muted">
-            failed {agents.length - verifiedCount}
-          </button>
+          {(
+            [
+              ["all", `All ${agents.length}`],
+              ["verified", `verified ${verifiedCount}`],
+              ["failed", `failed ${agents.length - verifiedCount}`],
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              role="radio"
+              aria-checked={statusFilter === key}
+              onClick={() => setStatusFilter(key)}
+              className={cn(
+                "px-3 py-1.5 transition-colors",
+                statusFilter === key
+                  ? "text-fg bg-canvas-elevated"
+                  : "text-fg-muted hover:text-fg"
+              )}
+            >
+              {label}
+            </button>
+          ))}
         </div>
         <input
           type="text"
@@ -112,7 +137,7 @@ export default function AgentWall() {
       </div>
 
       {/* Summary stats */}
-      <section className="grid grid-cols-4 gap-4" aria-label="Deployment summary">
+      <section className="matrix-grid grid-cols-2 lg:grid-cols-4 mb-8" aria-label="Deployment summary">
         <StatCard label="Agents deployed" value={agents.length.toString()} caption="last 3 min" />
         <StatCard
           label="Signed & verified"
@@ -120,23 +145,48 @@ export default function AgentWall() {
           caption="SLSA L2 · cosign via Fulcio"
           verified
         />
-        <StatCard label="Avg synthesis time" value="87.4s" caption="target ≤ 90s" mono />
+        <StatCard label="Avg synthesis time" value="87.4s" unit="s" caption="target ≤ 90s" />
         <StatCard
           label="Total invocations"
           value={totalRuns.toLocaleString()}
           caption="since 14:00"
-          mono
         />
       </section>
 
-      {/* Agent grid 5x2 */}
+      {/* Agent grid */}
       {isLoading && agents.length === 0 ? (
-        <div className="card p-10 text-center text-fg-muted">
-          Loading agents…
+        <div
+          className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4"
+          aria-label="Loading agents"
+          aria-busy="true"
+        >
+          {Array.from({ length: 10 }).map((_, i) => (
+            <div
+              key={i}
+              className="card p-4 h-[148px] flex flex-col gap-3 animate-pulse"
+              aria-hidden
+            >
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-border-strong" />
+                <div className="h-3 w-24 rounded bg-border-strong/70" />
+                <div className="ml-auto h-3 w-10 rounded bg-border-strong/40" />
+              </div>
+              <div className="h-3 w-3/4 rounded bg-border-strong/60" />
+              <div className="h-3 w-1/2 rounded bg-border-strong/40" />
+              <div className="mt-auto flex gap-2">
+                <div className="h-4 w-16 rounded bg-border-strong/50" />
+                <div className="h-4 w-12 rounded bg-border-strong/40" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="card p-10 text-center text-fg-muted text-[13px]">
+          No agents match this filter.
         </div>
       ) : (
         <div
-          className="grid grid-cols-5 gap-4"
+          className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4"
           role="list"
           aria-label="Synthesized agents"
         >
@@ -153,11 +203,13 @@ export default function AgentWall() {
         </div>
       )}
 
-      <p className="italic text-[13px] text-fg-muted pt-2 max-w-3xl">
+      <p className="font-display italic text-[18px] text-fg-muted pt-2 max-w-3xl leading-snug [font-variation-settings:'opsz'_36,'SOFT'_60]">
         Ten agents synthesized from ten 60-second recordings during the pitch.
         Every one of them signed, verified, federated, and memorized. Understudy:
-        the agent that builds agents.
+        the <span className="text-accent-amber not-italic font-mono uppercase tracking-[0.12em] text-[12px] align-middle">agent that builds agents</span>.
       </p>
+
+      </Section>
 
       {selectedAgent && selectedExtras && (
         <AgentDrawer
@@ -174,51 +226,30 @@ function StatCard({
   label,
   value,
   caption,
+  unit,
   verified,
-  mono,
 }: {
   label: string;
   value: string;
   caption?: string;
+  unit?: string;
   verified?: boolean;
-  mono?: boolean;
 }) {
   return (
-    <section className="card p-4">
-      <div className="text-[12px] text-fg-muted">{label}</div>
-      <div
-        className={
-          "mt-1 text-[28px] font-semibold leading-tight tabular-nums " +
-          (mono ? "font-mono" : "")
-        }
-      >
-        {verified ? (
-          <span className="flex items-center gap-2">
-            {value}
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 20 20"
-              aria-hidden
-              className="text-accent-emerald"
-            >
-              <circle cx="10" cy="10" r="9" fill="none" stroke="currentColor" strokeWidth="1.5" />
-              <path
-                d="M6 10l3 3 5-6"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </span>
-        ) : (
-          value
+    <section className="matrix-cell">
+      <div className="kpi-label mb-3">{label}</div>
+      <div className="kpi-value flex items-baseline gap-2">
+        <em>{value}</em>
+        {unit && <span className="font-mono text-[12px] text-fg-faint tracking-[0.05em] not-italic">{unit}</span>}
+        {verified && (
+          <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden className="text-accent-emerald">
+            <circle cx="10" cy="10" r="9" fill="none" stroke="currentColor" strokeWidth="1.5" />
+            <path d="M6 10l3 3 5-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
         )}
       </div>
       {caption && (
-        <div className="text-mono-sm font-mono text-fg-muted mt-1">
+        <div className="font-mono text-[11px] text-fg-muted mt-3 tracking-[0.03em]">
           {caption}
         </div>
       )}

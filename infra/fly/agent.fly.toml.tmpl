@@ -9,7 +9,7 @@
 #   {{ insforge_slot }}   — claimed warm-pool slot (0, 1, or 2)
 #   {{ primary_region }}  — iad or sjc
 #   {{ cosmo_endpoint }}  — federated endpoint for this agent's subgraph
-#   {{ pre_warm }}        — bool (default false). When true, keeps one machine hot
+#   {{ '{{ pre_warm }}' }}        — bool (default false). When true, keeps one machine hot
 #                           (min_machines_running=1, auto_stop_machines=off) to
 #                           guarantee sub-second cold start. Demo agents only —
 #                           normal synthesized agents should keep this false to

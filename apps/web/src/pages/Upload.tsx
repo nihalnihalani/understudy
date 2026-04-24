@@ -86,8 +86,23 @@ export default function Upload() {
   }, [staged, nav]);
 
   return (
-    <div className="max-w-[720px] mx-auto py-8">
-      <h1 className="sr-only">Upload a recording</h1>
+    <div className="max-w-[860px] mx-auto py-2">
+      {/* TRUE-style hero */}
+      <header className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-10 items-end pb-10 mb-8 border-b border-border-subtle">
+        <div>
+          <div className="section-tag mb-4">Mission Brief — 001</div>
+          <h1 className="font-display font-normal leading-[0.9] tracking-[-0.035em] text-[clamp(48px,7vw,96px)] m-0 text-fg [font-variation-settings:'opsz'_144,'SOFT'_20]">
+            Show it <em className="font-display-italic [font-variation-settings:'opsz'_144,'SOFT'_100]">once.</em><br />
+            <span className="text-fg-dim italic [font-variation-settings:'opsz'_144,'SOFT'_100]">Understudy</span> takes over.
+          </h1>
+        </div>
+        <p className="max-w-[360px] text-[14px] leading-[1.6] text-fg-muted border-l border-border-strong pl-5 pb-2">
+          Drop a 60-second screen recording.{" "}
+          <strong className="text-fg font-medium">Three Gemini models</strong>{" "}
+          synthesize a signed, federated, deployed web agent in ~90 seconds.
+          Every artifact is replayable, signed, and verifiable.
+        </p>
+      </header>
 
       {!staged && (
         <label
@@ -95,8 +110,8 @@ export default function Upload() {
           onDrop={onDrop}
           onDragOver={(e) => e.preventDefault()}
           className={cn(
-            "block border-2 border-dashed rounded-[12px] p-14 text-center cursor-pointer transition-colors",
-            "border-border-strong hover:border-primary bg-canvas-surface/40"
+            "block border border-dashed p-16 text-center cursor-pointer transition-colors",
+            "border-border-strong hover:border-accent-amber bg-canvas-panel/40 hover:bg-primary-soft"
           )}
           aria-label="Drop an mp4 recording here"
         >
@@ -111,32 +126,12 @@ export default function Upload() {
               if (f) void stage(f);
             }}
           />
-          <div className="flex flex-col items-center gap-4">
-            <div className="w-12 h-12 rounded-full border border-border-strong bg-canvas-elevated flex items-center justify-center text-fg-muted">
-              <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden>
-                <rect
-                  x="2"
-                  y="5"
-                  width="13"
-                  height="12"
-                  rx="2"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                />
-                <path
-                  d="M15 9l5-3v10l-5-3"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinejoin="round"
-                />
-              </svg>
+          <div className="flex flex-col items-center gap-5">
+            <div className="brand-mark w-14 h-14 text-[26px]">▶</div>
+            <div className="font-display text-[28px] leading-tight tracking-[-0.01em] text-fg [font-variation-settings:'opsz'_36,'SOFT'_30]">
+              Drop your <em className="font-display-italic [font-variation-settings:'opsz'_144,'SOFT'_100]">.mp4</em> recording
             </div>
-            <div className="text-[22px] font-semibold">
-              Drop your .mp4 recording
-            </div>
-            <div className="text-[14px] text-fg-muted max-w-md">
+            <div className="text-[13px] text-fg-muted max-w-md leading-[1.6]">
               60 seconds or less. Scene-change keyframing will cut this to 5–8
               frames before Gemini 3.1 Flash-Lite sees it.
             </div>
@@ -180,7 +175,7 @@ export default function Upload() {
               />
               <div className="mt-1.5 text-mono-sm font-mono text-fg-muted truncate">
                 {uploading
-                  ? `Uploading to s3://understudy-recordings/…  ${progress}%`
+                  ? `Uploading to /synthesize…  ${progress}%`
                   : "Ready. Click Start synthesis to kick off the 3-Gemini pipeline."}
               </div>
             </div>

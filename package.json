@@ -8,8 +8,10 @@
     "apps/web"
   ],
   "scripts": {
-    "dev": "echo 'Run docker compose up for local dev — see README.md'",
-    "lint": "echo 'TODO: wire eslint/prettier per workspace'"
+    "dev": "npm --workspace apps/web run dev",
+    "build": "npm --workspace apps/web run build",
+    "typecheck": "npm --workspace apps/web run typecheck",
+    "lint": "npm --workspace apps/web run lint"
   },
   "engines": {
     "node": ">=20"

@@ -55,7 +55,9 @@ async def test_synthesize_happy_path(api_client) -> None:
     assert len(entries) == 1
     _msg_id, fields = entries[0]
     assert fields["run_id"] == str(run_id)
-    assert fields["recording_uri"].startswith("s3://understudy-recordings/")
+    # API persists uploads to UPLOAD_DIR and enqueues a file:// URI the worker can fetch.
+    assert fields["recording_uri"].startswith("file://")
+    assert fields["recording_uri"].endswith(".mp4")
 
     # run:synth:{id} got the ingest trace event.
     trace = await conn.xrange(f"run:synth:{run_id}")

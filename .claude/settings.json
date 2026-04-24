@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "deny": [
+      "Edit(.env)",
+      "Edit(.env.*)",
+      "Edit(**/.env)",
+      "Edit(**/.env.*)",
+      "Write(.env)",
+      "Write(.env.*)",
+      "Write(**/.env)",
+      "Write(**/.env.*)"
+    ],
+    "allow": [
+      "Edit(**/.env.example)",
+      "Write(**/.env.example)",
+      "Bash(make:*)",
+      "Bash(pytest:*)",
+      "Bash(ruff:*)",
+      "Bash(npm run:*)",
+      "Bash(docker compose:*)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=\"$(jq -r '.tool_input.file_path // empty' <<<\"$CLAUDE_TOOL_INPUT\")\"; case \"$f\" in *.py) ruff format \"$f\" >/dev/null 2>&1 && ruff check --fix --quiet \"$f\" >/dev/null 2>&1 ;; esac; exit 0"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=\"$(jq -r '.tool_input.file_path // empty' <<<\"$CLAUDE_TOOL_INPUT\")\"; case \"$f\" in *.ts|*.tsx) cd \"$(dirname \"$f\")\" && (cd /Users/alhinai/Desktop/understudy/apps/web && npx --no-install tsc --noEmit) >/dev/null 2>&1 ;; esac; exit 0"
+          }
+        ]
+      }
+    ]
+  }
+}

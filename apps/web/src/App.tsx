@@ -1,4 +1,5 @@
 import { NavLink, Outlet } from "react-router-dom";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/api/client";
 import { cn } from "@/lib/cn";
@@ -15,32 +16,47 @@ export default function App() {
     queryKey: ["health"],
     queryFn: api.health,
     refetchInterval: 10_000,
-    // Never error-bubble the health chip.
     retry: false,
   });
   const probeByName = Object.fromEntries(
     (health?.services ?? []).map((s) => [s.name, s.status])
   );
+  const [now, setNow] = useState<string>(() => formatClock());
+  useEffect(() => {
+    const t = setInterval(() => setNow(formatClock()), 1000);
+    return () => clearInterval(t);
+  }, []);
 
   return (
-    <div className="min-h-screen flex flex-col bg-canvas">
-      <header className="h-14 border-b border-border-subtle bg-canvas-surface sticky top-0 z-30">
-        <div className="h-full max-w-[1440px] mx-auto px-6 flex items-center gap-8">
-          <div className="flex items-baseline gap-3">
-            <span className="font-semibold text-[16px] tracking-tight">
-              Understudy
-            </span>
-            <span className="text-fg-muted text-[12px] hidden md:inline">
-              Show it once. Understudy takes over.
-            </span>
+    <div className="min-h-screen flex flex-col">
+      <header className="sticky top-0 z-30 backdrop-blur-md bg-canvas/70 border-b border-border-subtle">
+        <div className="max-w-[1440px] mx-auto px-8 py-3.5 grid grid-cols-[1fr_auto_1fr] gap-6 items-center">
+          {/* Brand */}
+          <div className="flex items-center gap-3 font-mono text-[13px] tracking-[0.08em]">
+            <span className="brand-mark">U</span>
+            <span className="text-fg font-medium">UNDERSTUDY</span>
+            <span className="text-fg-dim">/</span>
+            <span className="text-fg-faint hidden md:inline">COMMAND CENTER</span>
           </div>
-          <nav className="flex items-center gap-1" aria-label="primary">
+
+          {/* Telemetry */}
+          <div className="hidden lg:flex gap-3 justify-center font-mono text-[10px] tracking-[0.14em] text-fg-faint uppercase">
+            <span className="inline-flex gap-2 items-center">
+              <span className="status-dot live heartbeat" />
+              <strong className="text-fg font-medium">PIPELINE LIVE</strong>
+            </span>
+            <span>T— <strong className="text-fg font-medium">{now}</strong></span>
+            <span>MODE <strong className="text-fg font-medium">{health?.demo_mode ?? "…"}</strong></span>
+          </div>
+
+          {/* Nav */}
+          <nav className="flex items-center gap-1 justify-end font-mono text-[10px] tracking-[0.14em] uppercase" aria-label="primary">
             {nav.map((item) =>
               item.external ? (
                 <a
                   key={item.to}
                   href={item.to}
-                  className="px-3 py-1.5 text-[13px] text-fg-muted hover:text-fg rounded"
+                  className="px-3 py-1.5 text-fg-faint hover:text-accent-amber border border-transparent hover:border-border-subtle hover:bg-primary-soft transition-colors"
                   target="_blank"
                   rel="noreferrer noopener"
                 >
@@ -52,10 +68,10 @@ export default function App() {
                   to={item.to}
                   className={({ isActive }) =>
                     cn(
-                      "px-3 py-1.5 text-[13px] rounded",
+                      "px-3 py-1.5 border border-transparent transition-colors",
                       isActive
-                        ? "text-fg bg-canvas-elevated"
-                        : "text-fg-muted hover:text-fg"
+                        ? "text-accent-amber border-border-subtle bg-primary-soft"
+                        : "text-fg-faint hover:text-accent-amber hover:border-border-subtle hover:bg-primary-soft"
                     )
                   }
                 >
@@ -64,67 +80,74 @@ export default function App() {
               )
             )}
           </nav>
-          <div className="ml-auto flex items-center gap-2">
-            <HealthChip name="redis" status={probeByName.redis} />
-            <HealthChip name="gemini" status={probeByName.gemini} />
-            <HealthChip name="cosmo_mcp" label="cosmo" status={probeByName.cosmo_mcp} />
-            <HealthChip
-              name="chainguard"
-              label="chainguard"
-              status={probeByName.chainguard}
-            />
-            <span className="chip chip-indigo ml-3" aria-label="demo mode">
-              DEMO_MODE: {health?.demo_mode ?? "…"}
-            </span>
+        </div>
+
+        {/* Health probe strip — hairline matrix below the topbar */}
+        <div className="border-t border-border-subtle">
+          <div className="max-w-[1440px] mx-auto px-8 py-2 flex flex-wrap items-center gap-x-5 gap-y-1.5 font-mono text-[10px] tracking-[0.12em] uppercase text-fg-faint">
+            <ProbePill name="REDIS"      status={probeByName.redis} />
+            <ProbePill name="GEMINI"     status={probeByName.gemini} />
+            <ProbePill name="COSMO"      status={probeByName.cosmo_mcp} />
+            <ProbePill name="CHAINGUARD" status={probeByName.chainguard} />
+            <ProbePill name="INSFORGE"   status={probeByName.insforge} />
+            <ProbePill name="TINYFISH"   status={probeByName.tinyfish} />
           </div>
         </div>
       </header>
-      <main className="flex-1 max-w-[1440px] mx-auto w-full px-6 py-6">
+
+      <main className="flex-1 max-w-[1440px] mx-auto w-full px-8 py-10">
         <Outlet />
       </main>
-      <footer className="h-10 border-t border-border-subtle">
-        <div className="h-full max-w-[1440px] mx-auto px-6 flex items-center justify-between text-[11px] font-mono text-fg-faint">
-          <span>pipeline: flash-lite → 3.1 pro → 3 flash</span>
-          <span>SLSA L2 · Chainguard · cosign · Fulcio · Rekor</span>
-          <span>apps/web · vite</span>
+
+      <footer className="border-t border-border-subtle bg-canvas-elevated/40">
+        <div className="max-w-[1440px] mx-auto px-8 py-6 grid grid-cols-1 md:grid-cols-3 gap-4 font-mono text-[10px] tracking-[0.14em] uppercase text-fg-faint">
+          <div>
+            <div className="text-fg mb-1">PIPELINE</div>
+            FLASH-LITE → 3.1 PRO → 3 FLASH
+          </div>
+          <div className="md:text-center">
+            <div className="text-fg mb-1">SUPPLY CHAIN</div>
+            SLSA L2 · CHAINGUARD · COSIGN · FULCIO · REKOR
+          </div>
+          <div className="md:text-right">
+            <div className="text-fg mb-1">RUNTIME</div>
+            APPS/WEB · VITE · REACT
+          </div>
         </div>
       </footer>
     </div>
   );
 }
 
-function HealthChip({
-  name,
-  status,
-  label,
-}: {
-  name: string;
-  status: string | undefined;
-  label?: string;
-}) {
+function ProbePill({ name, status }: { name: string; status: string | undefined }) {
   const ok = status === "ok" || status === "live";
   const mock = status === "mock";
-  const tone = ok ? "emerald" : mock ? "amber" : "crimson";
+  const dotCls = ok ? "live" : mock ? "" : "bad";
+  const valueCls = ok
+    ? "text-accent-emerald"
+    : mock
+    ? "text-fg-dim"
+    : "text-accent-bad";
+  const value = ok ? "LIVE" : mock ? "STUB" : (status ?? "—").toUpperCase();
   return (
     <span
-      className={cn(
-        "chip",
-        tone === "emerald" && "chip-emerald",
-        tone === "amber" && "chip-amber",
-        tone === "crimson" && "chip-crimson"
-      )}
-      aria-label={`${name} health: ${status ?? "unknown"}`}
+      className="inline-flex items-center gap-2"
+      title={
+        ok
+          ? "configured + reachable"
+          : mock
+          ? "credentials not set — running with stub adapters"
+          : "service degraded"
+      }
     >
-      <span
-        className={cn(
-          "inline-block w-1.5 h-1.5 rounded-full",
-          tone === "emerald" && "bg-accent-emerald",
-          tone === "amber" && "bg-accent-amber animate-pulse-dot",
-          tone === "crimson" && "bg-accent-crimson"
-        )}
-      />
-      <span>{label ?? name}</span>
-      <span className="text-fg-faint">{status ?? "—"}</span>
+      <span className={cn("status-dot", dotCls)} />
+      {name}
+      <span className={cn("font-medium", valueCls)}>{value}</span>
     </span>
   );
+}
+
+function formatClock(): string {
+  const d = new Date();
+  return d.toISOString().slice(11, 19) + " UTC";
 }

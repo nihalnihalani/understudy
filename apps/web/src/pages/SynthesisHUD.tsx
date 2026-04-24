@@ -63,23 +63,31 @@ export default function SynthesisHUD() {
   const [selectedFrame, setSelectedFrame] = useState(4);
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="text-[13px] font-mono text-fg-muted">
-          Synthesize ›{" "}
-          <span className="text-fg">run-{effectiveRun.id.slice(0, 8)}</span>
+    <div className="space-y-6">
+      <header className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-6 items-end pb-6 border-b border-border-subtle">
+        <div>
+          <div className="section-tag mb-3">Synthesis Run — 002</div>
+          <h1 className="section-title">
+            Three Geminis, <em>one</em> agent.
+          </h1>
+          <div className="font-mono text-[11px] text-fg-faint tracking-[0.12em] uppercase mt-3">
+            run-{effectiveRun.id.slice(0, 8)}
+          </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
           <StatusChip status={effectiveRun.status} />
-          <span className="font-mono text-[14px] tabular-nums">
-            {formatDuration(elapsed)}
-          </span>
+          <div className="text-right">
+            <div className="font-mono text-[10px] text-fg-faint uppercase tracking-[0.18em]">elapsed</div>
+            <div className="font-display italic text-[28px] leading-none text-accent-amber tabular-nums [font-variation-settings:'opsz'_144,'SOFT'_100]">
+              {formatDuration(elapsed)}
+            </div>
+          </div>
         </div>
-      </div>
+      </header>
 
       <StageStepper stages={stages} />
 
-      <div className="grid grid-cols-[320px_minmax(0,1fr)_420px] gap-4">
+      <div className="grid grid-cols-1 xl:grid-cols-[320px_minmax(0,1fr)_420px] gap-4">
         {/* LEFT RAIL: three stage cards */}
         <div className="flex flex-col gap-4">
           <GeminiStageCard
@@ -398,9 +406,15 @@ function IntentTree({ intent }: { intent: IntentAbstraction }) {
         ))}
       </TreeBlock>
       <TreeBlock label="Output schema">
-        <div className="font-mono text-mono-base text-fg-muted">
-          {Object.keys(intent.output_schema).join(", ")} (click to expand)
-        </div>
+        <details className="font-mono text-mono-base">
+          <summary className="cursor-pointer text-fg-muted hover:text-fg select-none list-none flex items-center gap-1.5">
+            <span aria-hidden className="text-fg-faint inline-block w-2.5 transition-transform [details[open]_&]:rotate-90">›</span>
+            {Object.keys(intent.output_schema).join(", ") || "(empty)"}
+          </summary>
+          <pre className="mt-2 ml-3.5 text-fg-muted whitespace-pre-wrap leading-[1.6]">
+            {JSON.stringify(intent.output_schema, null, 2)}
+          </pre>
+        </details>
       </TreeBlock>
       <TreeBlock label={`Steps (${intent.steps.length})`}>
         <ol className="space-y-1.5">
