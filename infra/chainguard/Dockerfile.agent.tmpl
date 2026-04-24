@@ -26,7 +26,19 @@ LABEL org.opencontainers.image.source="https://github.com/nihalnihalani/understu
       us.agent.id="{{AGENT_ID}}" \
       us.sdl.sha256="{{SIGNED_SDL_HASH}}"
 
-RUN apk add --no-cache nodejs npm cosign \
+RUN apk add --no-cache nodejs npm cosign
+
+# Chainguard Libraries — malware-resistant npm mirror (optional, opt-in).
+# When NPM_CHAINGUARD_AUTH is passed at build, all `npm install` + `tinyfish skills install`
+# calls pull from libraries.cgr.dev/javascript/ instead of the public registry.
+# The auth value is base64("USERNAME:PASSWORD") from `chainctl auth pull-token --repository=javascript`.
+# See docs/chainguard-libraries.md §JavaScript.
+ARG NPM_CHAINGUARD_AUTH=""
+RUN if [ -n "${NPM_CHAINGUARD_AUTH}" ]; then \
+      printf 'registry=https://libraries.cgr.dev/javascript/\n//libraries.cgr.dev/javascript/:_auth=%s\n//libraries.cgr.dev/javascript/:always-auth=true\n' \
+        "${NPM_CHAINGUARD_AUTH}" > /etc/npmrc ; \
+      export NPM_CONFIG_USERCONFIG=/etc/npmrc ; \
+    fi \
     && npm install -g @tinyfish/cli@^2
 
 RUN for spec in {{TINYFISH_SKILLS_PINNED}}; do \

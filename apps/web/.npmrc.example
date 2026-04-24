@@ -1,0 +1,19 @@
+# Chainguard Libraries — JavaScript (malware-resistant rebuilt-from-source npm mirror).
+#
+# To use:
+#   1. cp .npmrc.example .npmrc
+#   2. Run: chainctl auth pull-token --repository=javascript --ttl=720h
+#      → save the Username + Password.
+#   3. Compute the _auth value:
+#        echo -n 'USERNAME:PASSWORD' | base64
+#      → replace {BASE64_OF_USERNAME_PASSWORD} below with that string.
+#   4. .npmrc is .gitignored — never commit the real file.
+#
+# scripts/chainguard_init.sh automates steps 2–3 end-to-end; run that instead
+# if you want a one-shot bootstrap.
+#
+# Docs: https://edu.chainguard.dev/chainguard/libraries/javascript/
+
+registry=https://libraries.cgr.dev/javascript/
+//libraries.cgr.dev/javascript/:_auth={BASE64_OF_USERNAME_PASSWORD}
+//libraries.cgr.dev/javascript/:always-auth=true
