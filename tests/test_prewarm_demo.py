@@ -14,6 +14,7 @@ from scripts.prewarm_demo import (
     seed_ams,
     seed_dream,
     seed_langcache,
+    seed_protocols,
     seed_replay,
     seed_vectors,
     verify,
@@ -68,6 +69,7 @@ def test_verify_returns_true_after_seeding(fake_redis, capsys):
     seed_langcache(mem)
     seed_dream(mem)
     seed_replay(mem)
+    seed_protocols(fake_redis)
     # Vector Set seed may fail on fakeredis; backfill the vset key so verify() passes.
     fake_redis.set(f"vset:agent:{DEMO_AGENT}:memory", "1")
 

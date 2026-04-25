@@ -9,10 +9,6 @@ extend schema
     url: "https://specs.apollo.dev/federation/v2.5"
     import: ["@key", "@shareable", "@tag"]
   )
-  @link(
-    url: "https://cosmo.wundergraph.com/schemas/edfs/v0.1"
-    import: ["@edfs__natsSubscribe"]
-  )
 
 type Lead @key(fields: "id") {
   id: ID!
@@ -70,9 +66,10 @@ type Mutation {
   enrichLead(input: LeadEnrichmentInput!): Lead!
 }
 
-# NATS subject for live lead updates pushed from the CRM — bound during
-# register_edfs_events (architecture.md §4).
+# Live lead updates pushed from the CRM. EDFS NATS bindings are layered in
+# by the Dream Query `register_edfs_events` step (architecture.md §4) on a
+# sibling subgraph so this seed subgraph stays a regular federation v2
+# subgraph and composes without requiring a NATS provider in offline dev.
 type Subscription {
   leadUpdated(id: ID!): Lead!
-    @edfs__natsSubscribe(subjects: ["understudy.agent_beta.leads.*"], providerId: "understudy-nats")
 }

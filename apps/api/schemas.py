@@ -200,6 +200,20 @@ class ReplayResponse(BaseModel):
     payload: dict[str, Any]
 
 
+class AgentProtocols(BaseModel):
+    """GET /agents/{agent_id}/protocols response — multi-protocol surface.
+
+    Backed by `us:agent:{agent_id}:protocols` hash (field `endpoints`) written
+    by apps/synthesis-worker/cosmo_writer.py after Trusted Documents are pushed
+    and the ConnectRPC service proto is generated. Keys: `graphql` (router :4000),
+    plus `grpc` / `rest` / `connect` — the latter three are the same ConnectRPC
+    base URL on :5026, with the protocol selected by Content-Type header.
+    """
+
+    agent_id: str
+    endpoints: dict[str, str]
+
+
 class FullAttestation(BaseModel):
     """GET /agents/{id}/attestation — bundle the Supply Chain page renders from.
 

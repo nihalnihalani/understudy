@@ -30,9 +30,10 @@ import {
   seedMemory,
   seedRuns,
 } from "@/components/agents/agentWallSeeds";
-import { api } from "@/api/client";
+import { ProtocolChips } from "@/components/ProtocolChips";
+import { api, ApiError } from "@/api/client";
 import { DEMO_AGENTS, DEMO_AGENT_EXTRAS } from "@/fixtures/demo";
-import type { Agent } from "@/api/types";
+import type { Agent, AgentProtocols } from "@/api/types";
 import {
   isInsforgeConfigured,
   selectRows,
@@ -263,6 +264,7 @@ export default function AgentWall() {
                 hidden: { opacity: 0, y: 10 },
                 show: { opacity: 1, y: 0, transition: { duration: 0.2, type: "spring", stiffness: 300, damping: 30 } },
               }}
+              className="flex flex-col gap-2"
             >
               <AgentCard
                 agent={a}
@@ -274,6 +276,7 @@ export default function AgentWall() {
                   else openAgent(a.id);
                 }}
               />
+              <AgentProtocolStrip agentId={a.id} />
             </motion.div>
           ))}
         </motion.section>
@@ -468,6 +471,30 @@ function FilterPill({
       </span>
     </button>
   );
+}
+
+// AgentProtocolStrip — fetches the agent's Cosmo Connect protocol set and
+// renders the four-chip strip when present. 404 (or any network/parse
+// error) silently degrades to nothing — many agents won't have Trusted
+// Documents pushed yet, and the wall must keep rendering. Mirrors the
+// soft-fail pattern in apps/synthesis-worker/cosmo_writer.py.
+function AgentProtocolStrip({ agentId }: { agentId: string }) {
+  const { data } = useQuery<AgentProtocols | null>({
+    queryKey: ["agent", agentId, "protocols"],
+    queryFn: async () => {
+      try {
+        return await api.getAgentProtocols(agentId);
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 404) return null;
+        throw err;
+      }
+    },
+    retry: false,
+    staleTime: 60_000,
+  });
+
+  if (!data) return null;
+  return <ProtocolChips protocols={data} />;
 }
 
 function LoadingGrid() {

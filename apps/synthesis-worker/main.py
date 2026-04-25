@@ -18,6 +18,7 @@ import logging
 import os
 import signal
 from dataclasses import asdict
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -26,6 +27,7 @@ import redis.asyncio as aioredis
 # Hybrid import: works both as `apps.synthesis_worker.main` (if renamed) and as a
 # direct-script run from the hyphenated dir.
 try:
+    from .cosmo_writer import push_trusted_documents
     from .gemini_client import GeminiClient
     from .insforge_writer import InsforgeWriter
     from .langcache import LangCache
@@ -35,6 +37,7 @@ except ImportError:  # pragma: no cover — direct-script execution fallback
     import sys
 
     sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+    from cosmo_writer import push_trusted_documents  # type: ignore[no-redef]
     from gemini_client import GeminiClient  # type: ignore[no-redef]
     from insforge_writer import InsforgeWriter  # type: ignore[no-redef]
     from langcache import LangCache  # type: ignore[no-redef]
@@ -59,6 +62,9 @@ DEFAULT_BUILDER_ID = os.environ.get(
 )
 DEFAULT_GRAPHQL_BASE = os.environ.get(
     "COSMO_GRAPHQL_BASE", "https://cosmo.understudy.dev/agents"
+)
+OPERATIONS_DIR = Path(
+    os.environ.get("COSMO_OPERATIONS_DIR", "apps/cosmo-router/operations")
 )
 
 
@@ -193,6 +199,20 @@ async def _process_job(
     )
 
     await _publish_result(redis, result)
+    # Push the SDL-derived trusted documents to disk + Redis (and to Cosmo via
+    # `wgc operations push` when COSMO_API_KEY is set). Honors DEMO_MODE=replay
+    # via the writer itself; soft-fails offline like register_agent_subgraph.sh.
+    try:
+        agent_name = result.synth_id  # synthesizer assigns subgraph name = synth_id today
+        await push_trusted_documents(
+            agent_name=agent_name,
+            synth_id=result.synth_id,
+            documents=result.trusted_documents,
+            operations_dir=OPERATIONS_DIR,
+            redis=redis,
+        )
+    except Exception:
+        log.exception("push_trusted_documents failed for synth_id=%s", result.synth_id)
     # Best-effort DB persistence: the worker is the place where the image
     # digest + signed-agent triple becomes real. Done in a thread so the httpx
     # sync client doesn't block the asyncio loop. Failures are non-fatal —

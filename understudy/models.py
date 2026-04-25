@@ -19,7 +19,7 @@ GEMINI_SCRIPT_EMISSION: Final[str] = "gemini-3-flash"
 # stays canonical; this map is only applied at the SDK boundary.
 GEMINI_LIVE_MODEL_ALIASES: Final[dict[str, str]] = {
     "gemini-3.1-flash-lite": "gemini-3.1-flash-lite-preview",
-    "gemini-3.1-pro": "gemini-3-flash-preview",
+    "gemini-3.1-pro": "gemini-3.1-pro-preview",
     "gemini-3-flash": "gemini-3-flash-preview",
 }
 

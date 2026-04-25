@@ -9,10 +9,6 @@ extend schema
     url: "https://specs.apollo.dev/federation/v2.5"
     import: ["@key", "@shareable", "@tag"]
   )
-  @link(
-    url: "https://cosmo.wundergraph.com/schemas/edfs/v0.1"
-    import: ["@edfs__kafkaSubscribe", "@edfs__kafkaPublish"]
-  )
 
 type Order @key(fields: "id") {
   id: ID!
@@ -61,9 +57,10 @@ type Mutation {
   exportOrdersCsv(filter: OrderFilter!): OrderExport!
 }
 
-# Live fulfilment events — Dream Query registered the topic binding in the
-# register_edfs_events step (architecture.md §4).
+# Live fulfilment events. EDFS Kafka bindings are layered in by the Dream
+# Query `register_edfs_events` step (architecture.md §4) on a sibling
+# subgraph so this seed subgraph stays a regular federation v2 subgraph
+# and composes without requiring a Kafka provider in offline dev.
 type Subscription {
   orderStatusChanged(id: ID!): Order!
-    @edfs__kafkaSubscribe(topics: ["understudy.agent_alpha.orders"], providerId: "understudy-kafka")
 }
