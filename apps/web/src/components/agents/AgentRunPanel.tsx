@@ -160,12 +160,18 @@ export function AgentRunPanel({
             <label className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
               goal
             </label>
-            <Input
+            <textarea
               value={goal}
               onChange={(e) => setGoal(e.target.value)}
               disabled={state === "running"}
-              placeholder='e.g. "Search Google for hello world and click a suggestion"'
-              className="font-mono text-[12px]"
+              placeholder='Goal sentence + numbered steps with selector hints. Pre-filled from synthesized intent.'
+              rows={Math.min(10, Math.max(3, goal.split("\n").length))}
+              className={cn(
+                "flex w-full rounded-md border border-input bg-surface px-3 py-2 text-[12px] text-foreground font-mono leading-[1.5] resize-y",
+                "placeholder:text-faint",
+                "focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-0",
+                "disabled:cursor-not-allowed disabled:opacity-50"
+              )}
             />
           </div>
           <div className="space-y-1.5">

@@ -60,9 +60,11 @@ export default function SynthesisHUD() {
     (intent.invariants as { url?: string } | undefined)?.url ||
     matchUrl(scriptLines.join("\n")) ||
     "https://www.google.com";
-  const goalSentence = intent.inputs?.length
-    ? `${intent.goal}. Inputs: ${intent.inputs.map((i) => `${i.name}="${i.default ?? ""}"`).join(", ")}.`
-    : intent.goal;
+  // Compose a rich goal sentence: include the input defaults, the numbered
+  // step list, and the selector_hints (with `{input_name}` placeholders
+  // resolved). TinyFish's agent is LLM-driven — feeding it the synthesized
+  // step plan steers it toward the recorded flow instead of improvising.
+  const goalSentence = composeGoal(intent);
 
   return (
     <div className="space-y-5">
@@ -278,4 +280,40 @@ function TraceTail({ events }: { events: TraceEvent[] }) {
 function matchUrl(text: string): string | null {
   const m = text.match(/https?:\/\/[A-Za-z0-9.-]+(?:\/[^\s'"`]*)?/);
   return m ? m[0] : null;
+}
+
+function composeGoal(intent: {
+  goal: string;
+  inputs?: Array<{ name: string; default?: string | number | boolean | null }>;
+  steps?: Array<{ intent?: string; selector_hint?: string }>;
+}): string {
+  const parts: string[] = [intent.goal.trim().replace(/\.\s*$/, "") + "."];
+  const subs: Record<string, string> = {};
+  if (intent.inputs?.length) {
+    parts.push(
+      "Inputs: " +
+        intent.inputs
+          .map((i) => {
+            const v = String(i.default ?? "");
+            subs[i.name] = v;
+            return `${i.name}="${v}"`;
+          })
+          .join(", ") +
+        "."
+    );
+  }
+  if (intent.steps?.length) {
+    parts.push("Follow these steps in order:");
+    intent.steps.forEach((s, i) => {
+      const desc = (s.intent || "").trim();
+      const hint = (s.selector_hint || "").replace(
+        /\{(\w+)\}/g,
+        (_m, k) => subs[k] ?? `{${k}}`
+      );
+      parts.push(
+        `${i + 1}. ${desc}${hint ? `  (selector hint: ${hint})` : ""}`
+      );
+    });
+  }
+  return parts.join("\n");
 }
