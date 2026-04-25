@@ -1,115 +1,87 @@
-// InsForge 2.0 Remote OAuth MCP client. Architecture.md §13 "InsForge MCP OAuth drift" row:
-// on 401, refresh the access token and retry exactly once. Hard-fail goes to the caller.
+// InsForge 2.0 Remote OAuth MCP client. Wraps @modelcontextprotocol/sdk's
+// StreamableHTTPClientTransport with the auth header InsForge expects.
 //
-// We lean on @modelcontextprotocol/sdk for the underlying MCP transport; this wrapper
-// only adds the refresh-token loop.
+// InsForge's discovery doc (2026-04-25) says the MCP server speaks OAuth 2.1
+// with authorization_code + PKCE only — no refresh_token grant. The token is
+// obtained out-of-band via `python scripts/insforge_oauth_login.py` (one-time
+// browser flow) and stored in `.env` as INSFORGE_MCP_TOKEN. This client just
+// presents that token as a Bearer header.
+//
+// Endpoints (architecture.md §13):
+//   POST  https://mcp.insforge.dev/mcp           — Streamable HTTP MCP server
+//   GET   https://mcp.insforge.dev/.well-known/oauth-authorization-server
+//   POST  https://mcp.insforge.dev/oauth/token   — code → access_token
+//
+// On 401 the client throws — there's no automated refresh path. The caller
+// should re-run the login script.
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 
-export interface InsForgeOAuthConfig {
-  endpoint: string;
-  clientId: string;
-  clientSecret: string;
-  refreshToken: string;
-  tokenEndpoint?: string;
-}
+export const DEFAULT_MCP_ENDPOINT = "https://mcp.insforge.dev/mcp";
 
 export interface InsForgeMcpOpts {
-  config: InsForgeOAuthConfig;
-  // Injected for tests — production uses fetch.
-  fetchImpl?: typeof fetch;
-  clientFactory?: (headers: Record<string, string>, endpoint: string) => Promise<Client>;
-}
-
-interface TokenBundle {
+  /** Project-bound MCP access token from `scripts/insforge_oauth_login.py`. */
   accessToken: string;
-  expiresAt: number;
+  /** Defaults to https://mcp.insforge.dev/mcp. Override for local dev or staging. */
+  endpoint?: string;
+  /** Injected for tests; production builds a fresh Client per call. */
+  clientFactory?: (
+    headers: Record<string, string>,
+    endpoint: string,
+  ) => Promise<Client>;
 }
 
 export class InsForgeMcpClient {
-  private config: InsForgeOAuthConfig;
-  private token: TokenBundle | null = null;
-  private fetchImpl: typeof fetch;
-  private clientFactory: (headers: Record<string, string>, endpoint: string) => Promise<Client>;
+  private accessToken: string;
+  private endpoint: string;
+  private clientFactory: (
+    headers: Record<string, string>,
+    endpoint: string,
+  ) => Promise<Client>;
 
   constructor(opts: InsForgeMcpOpts) {
-    this.config = opts.config;
-    this.fetchImpl = opts.fetchImpl ?? fetch;
+    if (!opts.accessToken) {
+      throw new Error(
+        "InsForgeMcpClient requires accessToken — run `python scripts/insforge_oauth_login.py` and set INSFORGE_MCP_TOKEN in .env",
+      );
+    }
+    this.accessToken = opts.accessToken;
+    this.endpoint = opts.endpoint ?? DEFAULT_MCP_ENDPOINT;
     this.clientFactory = opts.clientFactory ?? defaultClientFactory;
   }
 
-  private async refresh(): Promise<TokenBundle> {
-    const tokenEndpoint = this.config.tokenEndpoint ?? `${this.config.endpoint}/oauth/token`;
-    const body = new URLSearchParams({
-      grant_type: "refresh_token",
-      refresh_token: this.config.refreshToken,
-      client_id: this.config.clientId,
-      client_secret: this.config.clientSecret,
-    });
-    const res = await this.fetchImpl(tokenEndpoint, {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
-      body,
-    });
-    if (!res.ok) {
-      throw new Error(`InsForge OAuth refresh failed: ${res.status} ${res.statusText}`);
-    }
-    const json = (await res.json()) as { access_token: string; expires_in?: number };
-    const bundle: TokenBundle = {
-      accessToken: json.access_token,
-      expiresAt: Date.now() + ((json.expires_in ?? 3600) - 60) * 1000,
-    };
-    this.token = bundle;
-    return bundle;
+  /** Open + initialize an MCP session and return the client. Caller closes it. */
+  async connect(): Promise<Client> {
+    return this.clientFactory(
+      { authorization: `Bearer ${this.accessToken}` },
+      this.endpoint,
+    );
   }
 
-  private async accessToken(): Promise<string> {
-    if (!this.token || Date.now() > this.token.expiresAt) {
-      await this.refresh();
-    }
-    return this.token!.accessToken;
-  }
-
-  async callTool(
-    name: string,
-    args: Record<string, unknown>,
-  ): Promise<unknown> {
-    const invoke = async (): Promise<unknown> => {
-      const token = await this.accessToken();
-      const client = await this.clientFactory(
-        { authorization: `Bearer ${token}` },
-        this.config.endpoint,
-      );
-      try {
-        return await client.callTool({ name, arguments: args });
-      } finally {
-        await client.close();
-      }
-    };
-
+  /** List the MCP tools the server exposes. Useful as a liveness probe. */
+  async listTools(): Promise<{ name: string; description?: string }[]> {
+    const client = await this.connect();
     try {
-      return await invoke();
-    } catch (err) {
-      if (isUnauthorized(err)) {
-        // §13 "InsForge MCP OAuth drift": drop the stale bundle, refresh, retry once.
-        this.token = null;
-        await this.refresh();
-        return invoke();
-      }
-      throw err;
+      const res = await client.listTools();
+      return (res.tools ?? []).map((t) => ({
+        name: t.name,
+        description: t.description,
+      }));
+    } finally {
+      await client.close();
     }
   }
-}
 
-function isUnauthorized(err: unknown): boolean {
-  if (!err) return false;
-  const anyErr = err as { status?: number; code?: number | string; message?: string };
-  if (anyErr.status === 401 || anyErr.code === 401) return true;
-  if (typeof anyErr.message === "string" && /\b401\b|unauthori[sz]ed/i.test(anyErr.message)) {
-    return true;
+  /** Invoke an MCP tool by name. Returns the raw tool result. */
+  async callTool(name: string, args: Record<string, unknown>): Promise<unknown> {
+    const client = await this.connect();
+    try {
+      return await client.callTool({ name, arguments: args });
+    } finally {
+      await client.close();
+    }
   }
-  return false;
 }
 
 async function defaultClientFactory(
@@ -119,7 +91,20 @@ async function defaultClientFactory(
   const transport = new StreamableHTTPClientTransport(new URL(endpoint), {
     requestInit: { headers },
   });
-  const client = new Client({ name: "understudy-agent", version: "0.1.0" }, { capabilities: {} });
+  const client = new Client(
+    { name: "understudy-agent", version: "0.1.0" },
+    { capabilities: {} },
+  );
   await client.connect(transport);
   return client;
+}
+
+/** Construct an InsForgeMcpClient from environment vars (INSFORGE_MCP_TOKEN). */
+export function fromEnv(env: Record<string, string | undefined> = process.env as Record<string, string | undefined>): InsForgeMcpClient | null {
+  const token = env.INSFORGE_MCP_TOKEN;
+  if (!token) return null;
+  return new InsForgeMcpClient({
+    accessToken: token,
+    endpoint: env.INSFORGE_MCP_ENDPOINT,
+  });
 }

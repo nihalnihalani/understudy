@@ -1,77 +1,61 @@
 import { describe, it, expect } from "vitest";
-import { InsForgeMcpClient } from "../src/insforge/mcp-client.js";
+import { InsForgeMcpClient, fromEnv, DEFAULT_MCP_ENDPOINT } from "../src/insforge/mcp-client.js";
 
-describe("InsForge Remote OAuth MCP client (§13 OAuth drift row)", () => {
-  it("refreshes on the first call, then reuses the access token", async () => {
-    let tokenCalls = 0;
-    const fakeFetch: typeof fetch = async () => {
-      tokenCalls++;
-      return new Response(
-        JSON.stringify({ access_token: `t${tokenCalls}`, expires_in: 3600 }),
-        { status: 200, headers: { "content-type": "application/json" } },
-      );
-    };
-    const toolCalls: Array<Record<string, string>> = [];
-    const factory = async (headers: Record<string, string>) => {
-      toolCalls.push(headers);
+describe("InsForgeMcpClient", () => {
+  it("rejects construction without an accessToken", () => {
+    expect(() => new InsForgeMcpClient({ accessToken: "" })).toThrow(
+      /accessToken/,
+    );
+  });
+
+  it("uses the default Remote MCP endpoint when none is provided", async () => {
+    const seenHeaders: Record<string, string>[] = [];
+    const seenEndpoints: string[] = [];
+    const factory = async (headers: Record<string, string>, endpoint: string) => {
+      seenHeaders.push(headers);
+      seenEndpoints.push(endpoint);
       return {
-        callTool: async () => ({ content: [{ type: "text", text: "ok" }] }),
+        listTools: async () => ({ tools: [{ name: "fetch-docs" }] }),
         close: async () => {},
       } as never;
     };
     const client = new InsForgeMcpClient({
-      config: {
-        endpoint: "https://mcp.insforge.dev",
-        clientId: "cid",
-        clientSecret: "sec",
-        refreshToken: "r1",
-      },
-      fetchImpl: fakeFetch,
+      accessToken: "abc.def.ghi",
       clientFactory: factory,
     });
-    await client.callTool("list_orders", {});
-    await client.callTool("list_orders", {});
-    expect(tokenCalls).toBe(1);
-    expect(toolCalls[0]!.authorization).toBe("Bearer t1");
-    expect(toolCalls[1]!.authorization).toBe("Bearer t1");
+    const tools = await client.listTools();
+    expect(tools).toEqual([{ name: "fetch-docs", description: undefined }]);
+    expect(seenEndpoints).toEqual([DEFAULT_MCP_ENDPOINT]);
+    expect(seenHeaders[0]!.authorization).toBe("Bearer abc.def.ghi");
   });
 
-  it("retries exactly once on 401 after forcing a refresh", async () => {
-    let tokenCalls = 0;
-    const fakeFetch: typeof fetch = async () => {
-      tokenCalls++;
-      return new Response(
-        JSON.stringify({ access_token: `t${tokenCalls}`, expires_in: 3600 }),
-        { status: 200, headers: { "content-type": "application/json" } },
-      );
-    };
-    let toolCallCount = 0;
-    const factory = async () =>
-      ({
-        callTool: async () => {
-          toolCallCount++;
-          if (toolCallCount === 1) {
-            const err = new Error("unauthorized") as Error & { status?: number };
-            err.status = 401;
-            throw err;
-          }
-          return { content: [{ type: "text", text: "ok" }] };
-        },
-        close: async () => {},
-      }) as never;
-    const client = new InsForgeMcpClient({
-      config: {
-        endpoint: "https://mcp.insforge.dev",
-        clientId: "cid",
-        clientSecret: "sec",
-        refreshToken: "r1",
+  it("forwards tool calls verbatim and presents the Bearer header each call", async () => {
+    let calls = 0;
+    const factory = async (headers: Record<string, string>) => ({
+      callTool: async ({ name, arguments: args }: { name: string; arguments: unknown }) => {
+        calls++;
+        return { name, args, auth: headers.authorization };
       },
-      fetchImpl: fakeFetch,
+      close: async () => {},
+    } as never);
+    const client = new InsForgeMcpClient({
+      accessToken: "TOKEN",
+      endpoint: "https://staging.insforge.dev/mcp",
       clientFactory: factory,
     });
-    const out = await client.callTool("list_orders", {});
-    expect(out).toBeTruthy();
-    expect(toolCallCount).toBe(2);
-    expect(tokenCalls).toBe(2);
+    const r1 = await client.callTool("query", { sql: "select 1" });
+    const r2 = await client.callTool("query", { sql: "select 2" });
+    expect(calls).toBe(2);
+    expect((r1 as { auth: string }).auth).toBe("Bearer TOKEN");
+    expect((r2 as { auth: string }).auth).toBe("Bearer TOKEN");
+  });
+
+  it("fromEnv returns null when INSFORGE_MCP_TOKEN is unset", () => {
+    expect(fromEnv({})).toBeNull();
+  });
+
+  it("fromEnv builds a client when INSFORGE_MCP_TOKEN is set", () => {
+    const c = fromEnv({ INSFORGE_MCP_TOKEN: "tkn" });
+    expect(c).not.toBeNull();
   });
 });

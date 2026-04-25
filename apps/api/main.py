@@ -131,11 +131,68 @@ def _probe_env(name: str, env_key: str, detail_when_set: str) -> ServiceProbe:
     )
 
 
+async def _probe_insforge_mcp() -> ServiceProbe:
+    """Probe InsForge Remote OAuth MCP if INSFORGE_MCP_TOKEN is set.
+
+    Sends a JSON-RPC `initialize` to https://mcp.insforge.dev/mcp with the
+    project-bound access token from `python scripts/insforge_oauth_login.py`.
+    `mock` when the token is unset; `ok` when the server returns a valid
+    initialize response (any 2xx + JSON body containing `protocolVersion`).
+    """
+    token = os.getenv("INSFORGE_MCP_TOKEN")
+    endpoint = os.getenv("INSFORGE_MCP_ENDPOINT", "https://mcp.insforge.dev/mcp")
+    if not token:
+        return ServiceProbe(
+            name="insforge_mcp",
+            status="mock",
+            detail="INSFORGE_MCP_TOKEN unset — run `python scripts/insforge_oauth_login.py`",
+        )
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as c:
+            resp = await c.post(
+                endpoint,
+                headers={
+                    "authorization": f"Bearer {token}",
+                    "content-type": "application/json",
+                    "accept": "application/json, text/event-stream",
+                },
+                json={
+                    "jsonrpc": "2.0", "id": 1, "method": "initialize",
+                    "params": {
+                        "protocolVersion": "2024-11-05",
+                        "capabilities": {},
+                        "clientInfo": {"name": "understudy-healthz", "version": "0.1"},
+                    },
+                },
+            )
+        if resp.status_code == 401:
+            return ServiceProbe(
+                name="insforge_mcp", status="degraded",
+                detail="401 — token expired; re-run insforge_oauth_login.py",
+            )
+        if 200 <= resp.status_code < 300:
+            session = resp.headers.get("Mcp-Session-Id", "")
+            return ServiceProbe(
+                name="insforge_mcp", status="ok",
+                detail=f"{endpoint} -> {resp.status_code} session={session[:12]}",
+            )
+        return ServiceProbe(
+            name="insforge_mcp", status="degraded",
+            detail=f"{resp.status_code} {resp.text[:80]}",
+        )
+    except Exception as exc:
+        return ServiceProbe(
+            name="insforge_mcp", status="degraded",
+            detail=f"{type(exc).__name__}: {exc}",
+        )
+
+
 @app.get("/healthz", response_model=HealthResponse)
 async def healthz(redis: RedisClient = Depends(get_redis)) -> HealthResponse:
     """Reports API liveness + demo mode + sponsor-service status probes."""
     redis_ok = await redis.ping()
     cosmo_probe = await _probe_http("cosmo_mcp", COSMO_ROUTER_URL)
+    insforge_mcp_probe = await _probe_insforge_mcp()
     probes = [
         ServiceProbe(name="redis", status="ok" if redis_ok else "degraded"),
         _probe_env(
@@ -146,6 +203,7 @@ async def healthz(redis: RedisClient = Depends(get_redis)) -> HealthResponse:
         cosmo_probe,
         _probe_env("chainguard", "GHCR_TOKEN", "cosign/Fulcio/Rekor configured"),
         _probe_env("insforge", "INSFORGE_API_KEY", "InsForge 2.0 API key configured"),
+        insforge_mcp_probe,
         _probe_env("tinyfish", "TINYFISH_API_KEY", "CLI + Agent Skills configured"),
     ]
     return HealthResponse(status="ok", demo_mode=_demo_mode(), services=probes)
