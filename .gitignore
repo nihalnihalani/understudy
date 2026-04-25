@@ -66,3 +66,9 @@ logs/
 .trae
 .windsurf
 understudy-default/
+
+# Per-synth Trusted Document files written by apps/synthesis-worker/cosmo_writer.py
+# (one subdir per agent_id). These are regenerated on every synthesis run; the
+# router consumes the *services/* dir (proto + matched ops) instead.
+apps/cosmo-router/operations/*/
+!apps/cosmo-router/operations/.gitkeep
