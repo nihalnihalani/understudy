@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@apollo/server": "^4.11.2",
+    "@apollo/subgraph": "^2.10.0",
     "@modelcontextprotocol/sdk": "^1.0.4",
     "execa": "^9.5.2",
     "graphql": "^16.9.0",
