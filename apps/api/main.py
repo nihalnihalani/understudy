@@ -74,6 +74,10 @@ app = FastAPI(
     description="60s screen recording → signed deployed web agent. See architecture.md.",
 )
 
+from .agent_runs import router as agent_runs_router  # noqa: E402
+
+app.include_router(agent_runs_router)
+
 
 @app.middleware("http")
 async def trace_middleware(request: Request, call_next: Callable[..., Any]) -> Response:

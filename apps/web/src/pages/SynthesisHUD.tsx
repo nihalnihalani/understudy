@@ -11,8 +11,9 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowRight, WifiOff, Radio } from "lucide-react";
+import { ArrowRight, WifiOff, Radio, Play } from "lucide-react";
 import { PageHeader } from "@/layouts/AppShell";
+import { AgentRunPanel } from "@/components/agents/AgentRunPanel";
 import { GeminiStageCard } from "@/components/synthesis/GeminiStageCard";
 import {
   KeyframeRibbon,
@@ -50,6 +51,19 @@ export default function SynthesisHUD() {
   const scriptLines =
     run.gemini_flash_trace?.split("\n").filter(Boolean) ?? DEMO_SCRIPT_LINES;
 
+  const [runPanelOpen, setRunPanelOpen] = useState(false);
+  // Pre-fill the run panel: goal sentence from the synthesized intent +
+  // a starting URL inferred from invariants/script (best-effort).
+  const inferredUrl =
+    (intent.invariants as { target_site?: string; url?: string } | undefined)
+      ?.target_site ||
+    (intent.invariants as { url?: string } | undefined)?.url ||
+    matchUrl(scriptLines.join("\n")) ||
+    "https://www.google.com";
+  const goalSentence = intent.inputs?.length
+    ? `${intent.goal}. Inputs: ${intent.inputs.map((i) => `${i.name}="${i.default ?? ""}"`).join(", ")}.`
+    : intent.goal;
+
   return (
     <div className="space-y-5">
       <PageHeader
@@ -66,8 +80,23 @@ export default function SynthesisHUD() {
             <span className="rounded-md border border-border bg-elevated px-2.5 py-1.5 font-mono text-[12px] tabular-nums text-muted-foreground">
               {formatDuration(elapsed)}
             </span>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => setRunPanelOpen(true)}
+              disabled={!intent.goal}
+            >
+              <Play className="size-3.5 fill-current" /> Run on TinyFish
+            </Button>
           </>
         }
+      />
+
+      <AgentRunPanel
+        open={runPanelOpen}
+        onOpenChange={setRunPanelOpen}
+        defaultGoal={goalSentence}
+        defaultUrl={inferredUrl}
       />
 
       <div
@@ -244,4 +273,9 @@ function TraceTail({ events }: { events: TraceEvent[] }) {
       <Separator className="mt-3" />
     </div>
   );
+}
+
+function matchUrl(text: string): string | null {
+  const m = text.match(/https?:\/\/[A-Za-z0-9.-]+(?:\/[^\s'"`]*)?/);
+  return m ? m[0] : null;
 }
