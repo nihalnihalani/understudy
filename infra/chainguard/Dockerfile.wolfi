@@ -1,12 +1,17 @@
 # Understudy base image (architecture.md §6, §13).
 #
-# wolfi-base is deliberately chosen over pure distroless: TinyFish drives a real
-# Chromium, which needs NSS/ATK/libdrm/mesa shared libs at runtime. Pure distroless
-# silently fails at launch (§13 "Chromium deps on distroless" row). wolfi-base keeps
-# the zero-CVE posture while giving us apk for the shared-lib set.
+# wolfi-base over pure distroless: distroless lacks `apk` for the few shared
+# libs Python wheels (opencv, ffmpeg-python) link against at import time;
+# wolfi-base keeps the zero-CVE posture while giving us a working apk surface.
 #
-# Shipped: Python 3.12, the understudy package, a non-root runtime user, and the
-# Chromium shared-lib floor that TinyFish expects.
+# NOTE: earlier this image listed Chromium runtime libs (NSS, ATK, mesa-dri,
+# cups, alsa, ...) under the assumption Chrome ran here. TinyFish is HOSTED —
+# the browser executes on TinyFish's cloud (`@tiny-fish/sdk` calls
+# tetra-data.production.tinyfish.io); this container only runs Python services
+# (synthesis worker, FastAPI). atk + mesa-dri-drivers also don't exist in
+# wolfi's apk index, which broke the build anyway. Trimmed to the actual floor.
+#
+# Shipped: Python 3.12, the understudy package, a non-root runtime user.
 
 ARG WOLFI_TAG=latest
 FROM cgr.dev/chainguard/wolfi-base:${WOLFI_TAG} AS base
@@ -19,24 +24,9 @@ RUN apk update && apk add --no-cache \
       ca-certificates \
       tini \
       curl \
-      nss \
-      atk \
-      libxkbcommon \
-      libdrm \
-      mesa-dri-drivers \
       glib \
-      dbus-libs \
-      cups-libs \
-      alsa-lib \
-      libxcomposite \
-      libxrandr \
-      libxdamage \
-      libxfixes \
-      pango \
-      cairo \
-      fontconfig \
-      freetype \
-      expat
+      libstdc++ \
+      libffi
 
 RUN adduser -D -u 65532 -h /home/understudy understudy \
     && mkdir -p /app /agent /var/run/understudy \
