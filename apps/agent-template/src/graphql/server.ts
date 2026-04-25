@@ -1,12 +1,19 @@
 // GraphQL server — loads the SDL from `manifest.cosmo_sdl_path` (produced by Cosmo Dream
 // Query, architecture.md §4) and wires every Query/Mutation field to the agent core loop.
 //
+// The SDL is a Federation v2 subgraph (uses @link to apollo/federation, @key on entities,
+// optionally @shareable / @tag), so we use `buildSubgraphSchema` from @apollo/subgraph
+// rather than the plain `typeDefs` constructor on ApolloServer. plain ApolloServer rejects
+// federation directives as "Unknown directive @link / @key", which would prevent every
+// synthesized agent from booting against a Cosmo Router supergraph.
+//
 // Resolver strategy: field name → operation string. Because the SDL itself is generated at
 // synthesis time, we don't ship hand-rolled resolver stubs — we inspect the SDL and
 // synthesize a single catchall resolver that delegates to the core loop.
 
 import { ApolloServer } from "@apollo/server";
 import { startStandaloneServer } from "@apollo/server/standalone";
+import { buildSubgraphSchema } from "@apollo/subgraph";
 import { readFile } from "node:fs/promises";
 import { parse, Kind, type DocumentNode, type OperationTypeNode } from "graphql";
 import gql from "graphql-tag";
@@ -33,7 +40,12 @@ export async function buildServer(deps: ServerDeps): Promise<BuildResult> {
   const sdl = await readFile(sdlPath, "utf8");
   const typeDefs = gql(sdl);
   const resolvers = buildResolvers(typeDefs, deps.core, deps.scriptPath);
-  const server = new ApolloServer({ typeDefs, resolvers });
+  // buildSubgraphSchema understands @link / @key / @shareable / @external / @override
+  // and surfaces _service { sdl } so the Cosmo Router supergraph composer can fetch it.
+  // Signature is `(DocumentNode | GraphQLSchemaModule[])`; resolvers ride along inside
+  // the schema-module object.
+  const schema = buildSubgraphSchema([{ typeDefs, resolvers: resolvers as never }]);
+  const server = new ApolloServer({ schema });
   return { server, typeDefs, resolvers };
 }
 
