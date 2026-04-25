@@ -217,36 +217,20 @@ jobs:
         with:
           name: sbom-${{ github.sha }}
 
-      - name: Download SLSA provenance predicate
-        # slsa-github-generator uploads the in-toto provenance predicate as a
-        # job artifact named "<image>.intoto.jsonl" when `upload-assets: true`.
-        uses: actions/download-artifact@v4
-        with:
-          # Artifact name from slsa-github-generator/generator_container_slsa3.yml.
-          pattern: "*.intoto.jsonl"
-          path: slsa-provenance/
-          merge-multiple: true
-
       - name: Cosign attach SBOM attestation
+        # SBOM is the only attestation we attach manually now. BuildKit's
+        # `provenance: mode=max` already attaches a SLSA v0.2 attestation to
+        # the registry signed by the build-sign-push job's OIDC identity, and
+        # slsa-github-generator additionally attaches an in-toto SLSA L3
+        # attestation signed by its own reusable-workflow identity — see the
+        # `cosign tree` output post-build. So a manual `cosign attest --type
+        # slsaprovenance` here would just be redundant. Earlier this step
+        # tried to download a `*.intoto.jsonl` artifact that v2.0.0 of the
+        # generator no longer uploads, which broke the whole job.
         run: |
           cosign attest --yes \
             --predicate sbom.spdx.json \
             --type spdxjson \
-            "${IMAGE_WITH_DIGEST}"
-
-      - name: Cosign attach SLSA provenance attestation
-        # Provenance predicate comes from the slsa-github-generator job, NOT the
-        # SBOM. Using the SBOM here would fail `cosign verify-attestation
-        # --type slsaprovenance` at boot per §13's preboot gate.
-        run: |
-          predicate=$(ls slsa-provenance/*.intoto.jsonl | head -n1)
-          if [[ -z "${predicate}" ]]; then
-            echo "no SLSA provenance predicate found under slsa-provenance/" >&2
-            exit 1
-          fi
-          cosign attest --yes \
-            --predicate "${predicate}" \
-            --type slsaprovenance \
             "${IMAGE_WITH_DIGEST}"
 
       - name: Post-verify Rekor transparency log entry

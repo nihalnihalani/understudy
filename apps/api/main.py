@@ -15,8 +15,10 @@ Boot: `python -m uvicorn apps.api.main:app --reload` from repo root.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
+import shutil
 import time
 from collections.abc import AsyncIterator
 from datetime import datetime, timezone
@@ -131,6 +133,67 @@ def _probe_env(name: str, env_key: str, detail_when_set: str) -> ServiceProbe:
     )
 
 
+async def _probe_chainguard() -> ServiceProbe:
+    """Probe whether the deployed agent base image is actually cosign-signed.
+
+    Replaces the old GHCR_TOKEN env-var heuristic — that env var only matters
+    for *pushing* an image from local dev. The judge cares whether the image
+    in GHCR is verifiable, which is what this probe answers.
+
+    `mock`  → cosign binary not on PATH
+    `ok`    → cosign verify against Fulcio + Rekor succeeds
+    `degraded` → cosign verify failed (signature missing or identity drift)
+    """
+    image = os.getenv(
+        "AGENT_IMAGE_REGISTRY", "ghcr.io/nihalnihalani/understudy-agent-base"
+    ) + ":latest"
+    cert_id = os.getenv(
+        "COSIGN_CERT_IDENTITY",
+        "https://github.com/nihalnihalani/understudy/.github/workflows/release.yml@refs/heads/main",
+    )
+    issuer = os.getenv(
+        "COSIGN_CERT_OIDC_ISSUER", "https://token.actions.githubusercontent.com",
+    )
+    cosign = shutil.which("cosign")
+    if cosign is None:
+        return ServiceProbe(
+            name="chainguard", status="mock",
+            detail="cosign not on PATH — install via `brew install cosign` to enable real verification",
+        )
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            cosign, "verify",
+            "--certificate-identity", cert_id,
+            "--certificate-oidc-issuer", issuer,
+            image,
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            _stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10.0)
+        except asyncio.TimeoutError:
+            proc.kill()
+            return ServiceProbe(
+                name="chainguard", status="degraded",
+                detail="cosign verify timed out (>10s)",
+            )
+        if proc.returncode == 0:
+            return ServiceProbe(
+                name="chainguard", status="ok",
+                detail=f"cosign verify ✓ {image} (Fulcio+Rekor)",
+            )
+        # Surface the first non-empty error line for the dashboard.
+        err = stderr.decode("utf-8", errors="ignore").strip().splitlines()[:1]
+        return ServiceProbe(
+            name="chainguard", status="degraded",
+            detail=(err[0] if err else "cosign verify failed")[:120],
+        )
+    except Exception as exc:
+        return ServiceProbe(
+            name="chainguard", status="degraded",
+            detail=f"{type(exc).__name__}: {exc}",
+        )
+
+
 async def _probe_insforge_mcp() -> ServiceProbe:
     """Probe InsForge Remote OAuth MCP if INSFORGE_MCP_TOKEN is set.
 
@@ -193,6 +256,7 @@ async def healthz(redis: RedisClient = Depends(get_redis)) -> HealthResponse:
     redis_ok = await redis.ping()
     cosmo_probe = await _probe_http("cosmo_mcp", COSMO_ROUTER_URL)
     insforge_mcp_probe = await _probe_insforge_mcp()
+    chainguard_probe = await _probe_chainguard()
     probes = [
         ServiceProbe(name="redis", status="ok" if redis_ok else "degraded"),
         _probe_env(
@@ -201,7 +265,7 @@ async def healthz(redis: RedisClient = Depends(get_redis)) -> HealthResponse:
             f"{GEMINI_ACTION_DETECTION}, {GEMINI_INTENT_ABSTRACTION}, {GEMINI_SCRIPT_EMISSION}",
         ),
         cosmo_probe,
-        _probe_env("chainguard", "GHCR_TOKEN", "cosign/Fulcio/Rekor configured"),
+        chainguard_probe,
         _probe_env("insforge", "INSFORGE_API_KEY", "InsForge 2.0 API key configured"),
         insforge_mcp_probe,
         _probe_env("tinyfish", "TINYFISH_API_KEY", "CLI + Agent Skills configured"),
