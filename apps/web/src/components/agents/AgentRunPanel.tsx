@@ -52,10 +52,13 @@ export function AgentRunPanel({
   const sourceRef = useRef<EventSource | null>(null);
   const logRef = useRef<HTMLDivElement | null>(null);
 
-  // Re-sync defaults when the panel opens with new pre-fills.
+  // Hard-reset goal/url to the latest pre-fill every time the panel opens.
+  // The previous `!goal` guard meant a panel that had ever been opened with a
+  // fixture pre-fill would lock that fixture in forever, even after the
+  // synthesized intent on the underlying HUD had landed for real.
   useEffect(() => {
     if (open) {
-      if (defaultGoal && !goal) setGoal(defaultGoal);
+      if (defaultGoal !== undefined) setGoal(defaultGoal);
       if (defaultUrl) setUrl(defaultUrl);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
