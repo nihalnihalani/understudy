@@ -139,16 +139,19 @@ export interface ReplayResponse {
   payload: Record<string, unknown>;
 }
 
-// GET /agents/{id}/protocols — Cosmo Connect surface for the agent's
-// federated subgraph. Backed by Trusted Documents pushed by the synthesis
-// worker. Mirror of apps/api/schemas.py::AgentProtocols.
+// GET /agents/{id}/protocols — multi-protocol surface for the agent's
+// federated subgraph. `graphql` is on the router's :4000 GraphQL endpoint;
+// `grpc`/`rest`/`connect` are all the same ConnectRPC base URL on :5026
+// (same URL, three Content-Type negotiations: application/grpc,
+// application/json, Connect-Protocol-Version: 1).
+// Mirror of apps/api/schemas.py::AgentProtocols.
 export interface AgentProtocols {
   agent_id: string;
   endpoints: {
     graphql: string;
     grpc: string;
     rest: string;
-    openapi: string;
+    connect: string;
   };
 }
 

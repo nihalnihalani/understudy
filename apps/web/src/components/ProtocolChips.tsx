@@ -1,5 +1,7 @@
-// PROTOCOL CHIPS — four-protocol surface (GraphQL / gRPC / REST / OpenAPI)
-// for a synthesized agent's federated subgraph, served by Cosmo Connect.
+// PROTOCOL CHIPS — four-protocol surface (GraphQL / gRPC / REST / Connect)
+// for a synthesized agent's federated subgraph. GraphQL is on the router's
+// :4000 endpoint; gRPC/REST/Connect are all the same :5026 ConnectRPC base
+// (Content-Type negotiation picks the protocol).
 //
 // Backed by GET /agents/{id}/protocols. Each chip is a copy-to-clipboard
 // button — clicking flashes "copied" for ~1.2s, then restores the label.
@@ -15,12 +17,12 @@ import type { AgentProtocols } from "@/api/types";
 
 type ProtocolKey = keyof AgentProtocols["endpoints"];
 
-const ORDER: ProtocolKey[] = ["graphql", "grpc", "rest", "openapi"];
+const ORDER: ProtocolKey[] = ["graphql", "grpc", "rest", "connect"];
 const LABELS: Record<ProtocolKey, string> = {
   graphql: "GraphQL",
   grpc: "gRPC",
   rest: "REST",
-  openapi: "OpenAPI",
+  connect: "Connect",
 };
 
 export function ProtocolChips({ protocols }: { protocols: AgentProtocols }) {

@@ -1,8 +1,19 @@
-"""Persist Trusted Documents to disk + Redis and (when online) push to Cosmo via wgc.
+"""Persist Trusted Documents + ConnectRPC artifacts for a synthesized agent.
 
-Mirrors the soft-failure pattern in scripts/register_agent_subgraph.sh — when wgc or
-COSMO_API_KEY is unavailable, we still write files locally + cache endpoints in Redis so
-the API can advertise the four protocol URLs. Honors DEMO_MODE=replay (architecture.md §14).
+Two parallel Wundergraph integrations land here, both honoring DEMO_MODE=replay:
+
+1. **Trusted Documents** (`wgc operations push`) — registers the operations
+   on Cosmo Cloud's persisted-operation store. Used by the GraphQL endpoint
+   for whitelist + cache. Soft-fails when COSMO_API_KEY is unset.
+
+2. **ConnectRPC service** (`wgc grpc-service generate`) — produces a
+   `service.proto` from the SDL + operation files. The router watches the
+   storage_provider directory and exposes the operations as gRPC / Connect /
+   gRPC-Web / HTTP+JSON on port 5026 at:
+   `http://<router>:5026/<package>.<Service>/<RpcMethod>`.
+
+The returned endpoints reflect the actual URL shape the router serves, not
+the older `/connect/{agent}/...` shape that doesn't exist on the OSS router.
 """
 
 from __future__ import annotations
@@ -28,19 +39,45 @@ Runner = Callable[[list[str]], Awaitable[tuple[int, str, str]]]
 class PushResult:
     endpoints: dict[str, str]
     wgc_skipped: bool
+    proto_generated: bool = False
 
 
-def _default_router_base() -> str:
+def _router_base() -> str:
     return os.environ.get("COSMO_ROUTER_URL", "http://localhost:4000").rstrip("/")
 
 
+def _connect_base() -> str:
+    """ConnectRPC server base URL. Default port is 5026 (router 0.311.0)."""
+    return os.environ.get("COSMO_CONNECT_URL", "http://localhost:5026").rstrip("/")
+
+
+def _service_pascal_case(agent_name: str) -> str:
+    """`agent_orders_demo` → `AgentOrdersDemo` for the proto Service name."""
+    return "".join(part.capitalize() for part in agent_name.replace("-", "_").split("_") if part)
+
+
+def _package_name(agent_name: str) -> str:
+    """Proto package per agent. Convention: `<snake_case>.v1`."""
+    safe = agent_name.replace("-", "_").lower()
+    return f"{safe}.v1"
+
+
 def _endpoint_set(agent_name: str) -> dict[str, str]:
-    base = _default_router_base()
+    """The four protocol surfaces the router actually serves for this agent.
+
+    `graphql` → port 4000 GraphQL endpoint (federation).
+    `grpc` / `connect` / `rest` → port 5026 ConnectRPC service base. Same URL
+    handles gRPC, gRPC-Web, Connect, and HTTP+JSON — protocol is selected
+    via `Content-Type` header per the Connect spec.
+    """
+    pkg = _package_name(agent_name)
+    svc = _service_pascal_case(agent_name)
+    connect_base = f"{_connect_base()}/{pkg}.{svc}"
     return {
-        "graphql": f"{base}/graphql",
-        "grpc": f"{base}/connect/{agent_name}",
-        "rest": f"{base}/connect/{agent_name}/json",
-        "openapi": f"{base}/connect/{agent_name}/openapi.json",
+        "graphql": f"{_router_base()}/graphql",
+        "grpc": connect_base,
+        "connect": connect_base,
+        "rest": connect_base,
     }
 
 
@@ -54,6 +91,52 @@ async def _default_runner(argv: list[str]) -> tuple[int, str, str]:
     return proc.returncode or 0, out.decode(), err.decode()
 
 
+async def _push_trusted_docs_to_cloud(
+    *, agent_name: str, doc_paths: list[Path], runner: Runner
+) -> bool:
+    """Best-effort wgc operations push. Returns True when the call ran (rc=0)."""
+    if not os.environ.get("COSMO_API_KEY"):
+        return False
+    graph_name = os.environ.get("COSMO_FEDERATED_GRAPH_NAME", "understudy")
+    argv = [
+        "wgc", "operations", "push", graph_name,
+        "--client", agent_name,
+        "--namespace", os.environ.get("COSMO_NAMESPACE", "default"),
+        "--quiet",
+    ]
+    for p in doc_paths:
+        argv.extend(["--file", str(p)])
+    rc, _stdout, _stderr = await runner(argv)
+    return rc == 0
+
+
+async def _generate_grpc_service(
+    *, agent_name: str, sdl_path: Path, ops_dir: Path, services_dir: Path, runner: Runner
+) -> bool:
+    """Run `wgc grpc-service generate` so the router can discover the agent.
+
+    Produces `service.proto` + `service.proto.lock.json` in
+    `services_dir/<agent_name>/`. The agent's .graphql operations are also
+    copied alongside so the router knows the GraphQL → RPC mapping.
+    """
+    target = services_dir / agent_name
+    target.mkdir(parents=True, exist_ok=True)
+    # Copy operation files into the service dir so the router discovers them.
+    if ops_dir.exists():
+        for op_file in ops_dir.glob("*.graphql"):
+            (target / op_file.name).write_text(op_file.read_text())
+
+    argv = [
+        "wgc", "grpc-service", "generate", _service_pascal_case(agent_name),
+        "--input", str(sdl_path),
+        "--output", str(target),
+        "--package-name", _package_name(agent_name),
+        "--with-operations", str(target),
+    ]
+    rc, _stdout, _stderr = await runner(argv)
+    return rc == 0
+
+
 async def push_trusted_documents(
     *,
     agent_name: str,
@@ -61,29 +144,36 @@ async def push_trusted_documents(
     documents: Iterable[TrustedDocument],
     operations_dir: Path,
     redis: aioredis.Redis,
+    sdl_path: Path | None = None,
+    services_dir: Path | None = None,
     runner: Runner | None = None,
 ) -> PushResult:
+    """Persist the agent's Trusted Documents + (when SDL present) generate the
+    ConnectRPC service proto so the router serves the agent at :5026.
+
+    Honors `DEMO_MODE=replay` — both wgc commands are skipped and the
+    canonical `us:agent:{name}:protocols` key is mirrored from canned data.
+    """
     docs = list(documents)
     demo_mode = os.environ.get("DEMO_MODE", "live").lower()
 
-    # --- DEMO_MODE=replay: read canned endpoints from Redis, do nothing else. ---
     if demo_mode == "replay":
         cached = await redis.hget(f"us:replay:{synth_id}:protocols", "endpoints")
         endpoints = json.loads(cached) if cached else _endpoint_set(agent_name)
-        # Mirror to the canonical us:agent:{name}:protocols key so the API
-        # endpoint /agents/{id}/protocols resolves in replay mode the same
-        # way it does in live mode (replay-mode hermeticity, invariant #2).
         await redis.hset(
             f"us:agent:{agent_name}:protocols",
             mapping={"endpoints": json.dumps(endpoints)},
         )
-        return PushResult(endpoints=endpoints, wgc_skipped=True)
+        return PushResult(endpoints=endpoints, wgc_skipped=True, proto_generated=False)
 
-    # --- Live / hybrid: write files + cache endpoints + best-effort wgc push. ---
+    # --- Live / hybrid: write op files + cache endpoints + (best-effort) wgc.
     target = operations_dir / agent_name
     target.mkdir(parents=True, exist_ok=True)
+    doc_paths: list[Path] = []
     for doc in docs:
-        (target / f"{doc.name}.graphql").write_text(doc.body)
+        path = target / f"{doc.name}.graphql"
+        path.write_text(doc.body)
+        doc_paths.append(path)
 
     endpoints = _endpoint_set(agent_name)
     await redis.hset(
@@ -91,27 +181,19 @@ async def push_trusted_documents(
         mapping={"endpoints": json.dumps(endpoints)},
     )
 
-    runner = runner or _default_runner
-    wgc_skipped = False
-    if not os.environ.get("COSMO_API_KEY"):
-        wgc_skipped = True
-    else:
-        graph_name = os.environ.get("COSMO_FEDERATED_GRAPH_NAME", "understudy")
-        argv = [
-            "wgc",
-            "operations",
-            "push",
-            graph_name,
-            "--client",
-            agent_name,
-            "--namespace",
-            os.environ.get("COSMO_NAMESPACE", "default"),
-            "--quiet",
-        ]
-        for doc in docs:
-            argv.extend(["--file", str(target / f"{doc.name}.graphql")])
-        rc, _stdout, _stderr = await runner(argv)
-        if rc != 0:
-            # Mirror register_agent_subgraph.sh — log + soft-fail, don't abort synthesis.
-            wgc_skipped = True
-    return PushResult(endpoints=endpoints, wgc_skipped=wgc_skipped)
+    run = runner or _default_runner
+    pushed = await _push_trusted_docs_to_cloud(
+        agent_name=agent_name, doc_paths=doc_paths, runner=run
+    )
+
+    proto_ok = False
+    if sdl_path is not None and services_dir is not None and sdl_path.exists():
+        proto_ok = await _generate_grpc_service(
+            agent_name=agent_name,
+            sdl_path=sdl_path,
+            ops_dir=target,
+            services_dir=services_dir,
+            runner=run,
+        )
+
+    return PushResult(endpoints=endpoints, wgc_skipped=not pushed, proto_generated=proto_ok)

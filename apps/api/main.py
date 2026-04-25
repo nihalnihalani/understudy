@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import json
 import os
-import json
 import time
 from collections.abc import AsyncIterator
 from datetime import datetime, timezone
@@ -342,7 +341,7 @@ async def get_agent_attestation(id: UUID, store: Store = Depends(get_store)) -> 
 async def get_agent_protocols(
     agent_id: str, redis: RedisClient = Depends(get_redis)
 ) -> AgentProtocols:
-    """Return the four Cosmo Connect endpoints (graphql / grpc / rest / openapi).
+    """Return the multi-protocol endpoint set (graphql / grpc / rest / connect).
 
     Backed by `us:agent:{agent_id}:protocols` hash (field `endpoints`) populated
     by apps/synthesis-worker/cosmo_writer.py after Trusted Documents are pushed.

@@ -40,12 +40,24 @@ DEMO_AGENT = "export-shopify-orders"
 DEMO_SYNTH_ID = "synth-demo-001"
 DEMO_RUN_ID = "run-demo-001"
 
-# Agent identifiers whose Cosmo Connect protocols (graphql / grpc / rest /
-# openapi) get seeded into us:agent:{id}:protocols. The web AgentWall reads
+# Agent identifiers whose multi-protocol endpoints (graphql / grpc / rest /
+# connect) get seeded into us:agent:{id}:protocols. The web AgentWall reads
 # these via GET /agents/{id}/protocols. Pre-warming them means the four chips
 # render instantly in DEMO_MODE=replay without waiting for synthesis.
 PROTOCOL_AGENTS: tuple[str, ...] = ("agent_alpha", "agent_beta", "agent_orders_demo")
-PROTOCOL_ROUTER_BASE = "http://localhost:4000"
+PROTOCOL_GRAPHQL_BASE = "http://localhost:4000"
+PROTOCOL_CONNECT_BASE = "http://localhost:5026"
+
+
+def _service_pascal_case(agent_name: str) -> str:
+    """`agent_orders_demo` → `AgentOrdersDemo` for the proto Service name."""
+    parts = [p for p in agent_name.replace("-", "_").split("_") if p]
+    return "".join(part.capitalize() for part in parts)
+
+
+def _package_name(agent_name: str) -> str:
+    """Proto package per agent. Convention: `<snake_case>.v1`."""
+    return f"{agent_name.replace('-', '_').lower()}.v1"
 
 
 # The 5 prior turns the demo agent should "remember" (architecture.md §15 beat 2:40-2:55).
@@ -185,18 +197,24 @@ def seed_protocols(redis: Any) -> int:
     """Seed `us:agent:{name}:protocols` for the seed agents.
 
     Mirrors the shape written by apps/synthesis-worker/cosmo_writer.py: a hash
-    with field `endpoints` containing JSON {graphql, grpc, rest, openapi}. The
-    API surfaces these via GET /agents/{agent_id}/protocols, and the AgentWall
-    renders them as four copy-to-clipboard chips per tile. Hermetic-demo:
-    pre-seeded so the four chips appear instantly in DEMO_MODE=replay.
+    with field `endpoints` containing JSON {graphql, grpc, rest, connect}.
+    `graphql` is the federated router endpoint on :4000; the other three are
+    the same ConnectRPC service base URL on :5026 (different Content-Type
+    selects the protocol). The AgentWall renders them as four copy-to-clipboard
+    chips per tile. Hermetic-demo: pre-seeded so chips appear instantly in
+    DEMO_MODE=replay.
     """
     written = 0
     for agent_name in PROTOCOL_AGENTS:
+        connect_base = (
+            f"{PROTOCOL_CONNECT_BASE}/{_package_name(agent_name)}."
+            f"{_service_pascal_case(agent_name)}"
+        )
         endpoints = {
-            "graphql": f"{PROTOCOL_ROUTER_BASE}/graphql",
-            "grpc": f"{PROTOCOL_ROUTER_BASE}/connect/{agent_name}",
-            "rest": f"{PROTOCOL_ROUTER_BASE}/connect/{agent_name}/json",
-            "openapi": f"{PROTOCOL_ROUTER_BASE}/connect/{agent_name}/openapi.json",
+            "graphql": f"{PROTOCOL_GRAPHQL_BASE}/graphql",
+            "grpc": connect_base,
+            "rest": connect_base,
+            "connect": connect_base,
         }
         redis.hset(
             f"us:agent:{agent_name}:protocols",
