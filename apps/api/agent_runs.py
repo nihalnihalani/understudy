@@ -16,6 +16,7 @@ import json
 import logging
 import os
 from collections.abc import AsyncIterator
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
@@ -25,7 +26,7 @@ log = logging.getLogger(__name__)
 router = APIRouter(prefix="/agents/run", tags=["agent-runs"])
 
 
-def _sse(payload: dict) -> bytes:
+def _sse(payload: dict[str, Any]) -> bytes:
     return f"data: {json.dumps(payload)}\n\n".encode("utf-8")
 
 
@@ -46,7 +47,7 @@ async def stream_agent_run(request: Request, goal: str, url: str) -> StreamingRe
 
     # Lazy-import so the API still boots if tinyfish isn't installed in dev.
     try:
-        from tinyfish import AsyncTinyFish
+        from tinyfish import AsyncTinyFish  # type: ignore[import-not-found]
     except Exception as exc:  # pragma: no cover
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -86,7 +87,7 @@ async def stream_agent_run(request: Request, goal: str, url: str) -> StreamingRe
     )
 
 
-def _event_to_dict(event: object) -> dict:
+def _event_to_dict(event: object) -> dict[str, Any]:
     """Coerce a tinyfish SDK event (pydantic model) into a plain dict.
 
     The SDK emits typed pydantic models (StartedEvent, ProgressEvent, …);
