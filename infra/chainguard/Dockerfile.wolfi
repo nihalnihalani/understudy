@@ -28,7 +28,9 @@ RUN apk update && apk add --no-cache \
       libstdc++ \
       libffi
 
-RUN adduser -D -u 65532 -h /home/understudy understudy \
+RUN apk add --no-cache shadow \
+    && groupadd -g 65532 understudy \
+    && useradd -m -d /home/understudy -u 65532 -g understudy -s /sbin/nologin understudy \
     && mkdir -p /app /agent /var/run/understudy \
     && chown -R understudy:understudy /app /agent /var/run/understudy
 
