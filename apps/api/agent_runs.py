@@ -12,7 +12,6 @@ The TinyFish API key lives in `TINYFISH_API_KEY` env var.
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import os
