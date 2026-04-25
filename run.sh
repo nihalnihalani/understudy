@@ -355,6 +355,122 @@ start_web() {
   warn "web (pid ${pid}) didn't return 200 yet — vite may still be warming; check logs/web.log"
 }
 
+# ------------------------------------------------------------ cosmo router (optional)
+COSMO_ROUTER_CACHE="${HOME}/.cache/understudy/cosmo-router"
+COSMO_ROUTER_BIN="${COSMO_ROUTER_CACHE}/router"
+
+ensure_cosmo_router_binary() {
+  if [[ -x "$COSMO_ROUTER_BIN" ]]; then
+    return 0
+  fi
+  if ! command -v wgc >/dev/null 2>&1; then
+    warn "wgc CLI not found — install from https://wundergraph.com/cosmo to enable the local Cosmo Router"
+    return 1
+  fi
+  mkdir -p "$COSMO_ROUTER_CACHE"
+  info "downloading Cosmo Router binary (~85MB, one-time, cached at ${COSMO_ROUTER_CACHE})"
+  if ! ( cd "$COSMO_ROUTER_CACHE" && wgc router download-binary --out . >/dev/null 2>&1 ); then
+    warn "wgc router download-binary failed — see ${COSMO_ROUTER_CACHE}"
+    return 1
+  fi
+  [[ -x "$COSMO_ROUTER_BIN" ]]
+}
+
+start_router() {
+  hdr "cosmo router (optional)"
+  if ! ensure_cosmo_router_binary; then
+    warn "skipping router boot — :4000 (graphql) and :5026 (connect) won't be available"
+    return 0
+  fi
+  # Don't try to start it if something's already listening (manual smoke test).
+  if lsof -nPiTCP:4000 -sTCP:LISTEN >/dev/null 2>&1; then
+    info "port 4000 already in use — assuming an existing router is running"
+    return 0
+  fi
+  # Render a runtime config. The cosmo router parses `-config` as a comma-
+  # separated list, so any `,` in the absolute path (e.g. "ship to prod, cc")
+  # breaks it. Render to ${COSMO_ROUTER_CACHE}/runtime.yaml — that path is
+  # comma-free under $HOME/.cache.
+  local cfg_in="${REPO_ROOT}/apps/cosmo-router/config.yaml"
+  local cfg_out="${COSMO_ROUTER_CACHE}/runtime.yaml"
+  local sg_in="${REPO_ROOT}/apps/cosmo-router/supergraph.json"
+  local svc_dir="${REPO_ROOT}/apps/cosmo-router/services"
+  if [[ ! -f "$cfg_in" ]]; then
+    warn "no apps/cosmo-router/config.yaml — skipping router"
+    return 0
+  fi
+  # Copy supergraph + the services dir into the comma-free cache so all paths
+  # the router resolves are also comma-free.
+  local sg_out="${COSMO_ROUTER_CACHE}/supergraph.json"
+  local svc_out="${COSMO_ROUTER_CACHE}/services"
+  cp "$sg_in" "$sg_out" 2>/dev/null || true
+  rm -rf "$svc_out" 2>/dev/null || true
+  cp -R "$svc_dir" "$svc_out" 2>/dev/null || mkdir -p "$svc_out"
+
+  # The router's connect_rpc block requires at least one discovered service
+  # under storage_providers.file_system.path. If our services dir is empty
+  # (fresh checkout — only .gitkeep), bootstrap a minimal `agent_alpha`
+  # service from the seed SDL so the router can boot. Real synthesized
+  # agents add their own services via apps/synthesis-worker/cosmo_writer.py.
+  local agent_seed_sdl="${REPO_ROOT}/apps/cosmo-router/subgraphs/agent_alpha.graphql"
+  if [[ -z "$(find "$svc_out" -name 'service.proto' 2>/dev/null | head -1)" ]] \
+     && [[ -f "$agent_seed_sdl" ]] \
+     && command -v wgc >/dev/null 2>&1; then
+    info "bootstrapping seed ConnectRPC service from agent_alpha SDL"
+    # SDL must live OUTSIDE --with-operations dir, otherwise wgc treats it as
+    # an operation file and errors with "No named operations found in document".
+    local sdl_clean="${COSMO_ROUTER_CACHE}/agent_alpha.sdl.graphql"
+    awk '/^# Live fulfilment events/{exit} {print}' "$agent_seed_sdl" > "$sdl_clean"
+    mkdir -p "${svc_out}/agent_alpha"
+    cat > "${svc_out}/agent_alpha/QueryOrders.graphql" <<'EOF'
+query QueryOrders($filter: OrderFilter, $first: Int = 25) {
+  orders(filter: $filter, first: $first) {
+    id
+    status
+  }
+}
+EOF
+    if ! ( cd "$svc_out/agent_alpha" && wgc grpc-service generate AgentAlpha \
+            --input "$sdl_clean" \
+            --output . \
+            --package-name agent_alpha.v1 \
+            --with-operations . \
+            >/dev/null 2>&1 ); then
+      warn "wgc grpc-service generate failed; router may have empty services dir"
+    fi
+  fi
+
+  sed -e "s|/etc/cosmo-router/supergraph.json|${sg_out}|" \
+      -e "s|/etc/cosmo-router/services|${svc_out}|" \
+      "$cfg_in" > "$cfg_out"
+  # `env -i` strips DEMO_MODE etc. — the router has its own `DemoMode` bool
+  # config field that conflicts with ours and refuses to parse "live"/"replay".
+  info "booting router on :4000 (graphql) + :5026 (connect)"
+  ( cd "${LOG_DIR}" && \
+    nohup env -i HOME="$HOME" PATH="$PATH" \
+      FRONTEND_ORIGIN="http://127.0.0.1:5173" \
+      STUDIO_URL="https://cosmo.wundergraph.com" \
+      "$COSMO_ROUTER_BIN" -config "$cfg_out" \
+      >> "${LOG_DIR}/cosmo-router.log" 2>&1 & echo $! > "${LOG_DIR}/.cosmo-router.pid" )
+  local pid; pid="$(cat "${LOG_DIR}/.cosmo-router.pid")"
+  state_set COSMO_ROUTER_PID "$pid"
+  local i
+  for i in 1 2 3 4 5 6 7 8 9 10; do
+    if grep -qE 'Server initialized and ready to serve' "${LOG_DIR}/cosmo-router.log" 2>/dev/null; then
+      ok "router up (pid ${pid}, :4000 + :5026)"
+      return 0
+    fi
+    if ! pid_alive "$pid"; then
+      warn "router exited early — see logs/cosmo-router.log"
+      tail -n 10 "${LOG_DIR}/cosmo-router.log" | sed 's/^/    /'
+      rm -f "${LOG_DIR}/.cosmo-router.pid"
+      return 0   # non-fatal: stack still useful without the router
+    fi
+    sleep 0.5
+  done
+  warn "router started but never reported ready — see logs/cosmo-router.log"
+}
+
 # ------------------------------------------------------------ prewarm (replay only)
 prewarm_demo() {
   if [[ "$DEMO_MODE_VALUE" != "replay" ]]; then
@@ -393,7 +509,8 @@ stop_one() {
 
 stop_all() {
   hdr "shutdown"
-  # reverse dependency order: web -> worker -> api -> redis (only if WE started it)
+  # reverse dependency order: router -> web -> worker -> api -> redis
+  stop_one "cosmo-router" "${LOG_DIR}/.cosmo-router.pid"
   stop_one "web"    "${LOG_DIR}/.web.pid"
   stop_one "worker" "${LOG_DIR}/.worker.pid"
   stop_one "api"    "${LOG_DIR}/.api.pid"
@@ -450,6 +567,12 @@ cmd_status() {
   else
     warn "redis not reachable"
   fi
+  # Cosmo Router (optional)
+  if curl -sf -o /dev/null -w "%{http_code}" http://127.0.0.1:4000/health 2>/dev/null | grep -q '^2'; then
+    ok "cosmo router 127.0.0.1:4000 (graphql) + :5026 (connect) up"
+  else
+    info "cosmo router not running (optional — install wgc + './run.sh start' to enable)"
+  fi
   # Versions
   hdr "versions"
   printf "  python  %s\n" "$(python3 --version 2>&1)"
@@ -482,17 +605,21 @@ cmd_start() {
   start_api
   start_worker
   start_web
+  start_router
 
   hdr "stack ready"
   printf "  %sapi%s     -> http://127.0.0.1:8080  (healthz ok, demo_mode=%s)\n" "$C_BOLD" "$C_RESET" "$DEMO_MODE_VALUE"
   printf "  %sweb%s     -> http://127.0.0.1:5173  (vite dev server)\n" "$C_BOLD" "$C_RESET"
   printf "  %sworker%s  -> pid %s (logs/worker.log)\n" "$C_BOLD" "$C_RESET" "$(state_get WORKER_PID)"
   printf "  %sredis%s   -> running\n" "$C_BOLD" "$C_RESET"
+  if [[ -n "$(state_get COSMO_ROUTER_PID)" ]]; then
+    printf "  %srouter%s  -> http://127.0.0.1:4000/graphql  +  http://127.0.0.1:5026 (connect)\n" "$C_BOLD" "$C_RESET"
+  fi
   hdr "ctrl-c to stop all"
 
   # Foreground tail. trap will fire on Ctrl-C / TERM and tear it all down.
   trap 'stop_all; exit 0' INT TERM
-  tail -n 0 -F "${LOG_DIR}/api.log" "${LOG_DIR}/worker.log" "${LOG_DIR}/web.log" 2>/dev/null &
+  tail -n 0 -F "${LOG_DIR}/api.log" "${LOG_DIR}/worker.log" "${LOG_DIR}/web.log" "${LOG_DIR}/cosmo-router.log" 2>/dev/null &
   TAIL_PID=$!
   wait "$TAIL_PID"
 }
