@@ -12,97 +12,133 @@ The on-stage script for the 3-minute pitch. Beat-by-beat timing lives in archite
 ## Live Wundergraph verification (T-12h)
 
 The replay-mode demo path works without any of this — these steps prove the
-**live** Cosmo Connect path so the four-protocol pop at 2:15 is real, not a
-canned chip render. Run once the morning of; if any step fails, demo in
-`DEMO_MODE=replay` and skip the live `curl` at 2:15.
+**live** ConnectRPC path so the four-protocol pop at 2:15 is real, not a
+canned chip render. **Verified end-to-end on 2026-04-25** against
+`router@0.311.0` + Cosmo Cloud (org `nihal.nihalani`, graph `understudy`).
+Run once the morning of; if any step fails, demo in `DEMO_MODE=replay` and
+skip the live `curl` at 2:15.
 
-### 1. Cosmo Cloud account + federated graph
+### 1. Cosmo Cloud account + federated graph + subgraph
 
 ```bash
 wgc auth login                                 # opens browser; SSO into Cosmo Studio
-wgc federated-graph list                       # confirm the graph exists
+wgc auth whoami                                # confirm org slug
+
+wgc federated-graph list
 # If 'understudy' is missing, create it:
 wgc federated-graph create understudy \
   --routing-url http://cosmo-router:4000/graphql \
   --label-matcher 'team=understudy'
+
+# Cosmo Cloud requires at least one subgraph to compose the graph.
+# Note: agent_alpha.graphql still has a `type Subscription` — Cosmo Cloud's
+# publish step rejects that as Event-Driven without EDFS directives. Strip
+# the Subscription block to a temp file before publishing:
+awk '/^# Live fulfilment events/{exit} {print}' \
+  apps/cosmo-router/subgraphs/agent_alpha.graphql > /tmp/agent_alpha-no-sub.graphql
+
+wgc subgraph create agent_alpha --namespace default \
+  --label team=understudy \
+  --routing-url http://agent_alpha:4001/graphql
+wgc subgraph publish agent_alpha --namespace default \
+  --schema /tmp/agent_alpha-no-sub.graphql
+
+# Confirm graph composes:
+wgc federated-graph list   # expect IS_COMPOSABLE: ✔
 ```
 
-Grab the API key (Cosmo Studio → Settings → API Keys) and put it in `.env`:
+Set `.env` (no separate API-key step needed — wgc uses the SSO session;
+`COSMO_API_KEY` just acts as a feature flag for `cosmo_writer.py`):
 
 ```
-COSMO_API_KEY=cosmo_xxx...
-COSMO_FEDERATED_GRAPH_NAME=understudy   # match the name above
+COSMO_API_KEY=sso              # any non-empty value enables the wgc path
+COSMO_FEDERATED_GRAPH_NAME=understudy
 COSMO_NAMESPACE=default
+COSMO_OPERATIONS_DIR=apps/cosmo-router/operations
 ```
 
-### 2. Pull + boot the Cosmo Router (the `connect:` block dry-run)
+### 2. Generate proto for ConnectRPC + boot the Cosmo Router
+
+The OSS router doesn't ship via a public Docker image (auth-walled), so we
+download the binary directly:
 
 ```bash
-docker login ghcr.io                           # use a GitHub PAT with read:packages
-docker pull ghcr.io/wundergraph/cosmo-router:latest
+mkdir -p /tmp/cosmo-router-bin && cd /tmp/cosmo-router-bin
+wgc router download-binary --out .
+cd -
 
-docker compose up cosmo-router -d
-docker compose logs -f cosmo-router | grep -E "connect|listening|error" | head -20
+# Generate the gRPC service the router will discover:
+wgc grpc-service generate AgentAlpha \
+  --input /tmp/agent_alpha-no-sub.graphql \
+  --output apps/cosmo-router/services/agent_alpha \
+  --package-name agent_alpha.v1 \
+  --with-operations apps/cosmo-router/services/agent_alpha
+# `--with-operations` requires the dir to already contain QueryX.graphql /
+# MutationY.graphql files. cosmo_writer.py writes them automatically; for a
+# manual smoke test add a few by hand:
+# echo 'query QueryOrders { orders { id status } }' \
+#   > apps/cosmo-router/services/agent_alpha/QueryOrders.graphql
+
+# Boot the router (DEMO_MODE clashes with router's bool config; clear env):
+cd /tmp && env -i HOME="$HOME" PATH="$PATH" \
+  FRONTEND_ORIGIN=http://localhost:5173 STUDIO_URL=https://cosmo.wundergraph.com \
+  /tmp/cosmo-router-bin/router \
+    -config "$OLDPWD/apps/cosmo-router/config.yaml" 2>&1 | tee /tmp/router.log &
+sleep 4
+grep -E "ConnectRPC server ready|registering services" /tmp/router.log
 ```
 
-Expected: a "Connect listener bound on /connect" or equivalent log line.
-**If the router rejects the `connect:` block** (older versions name keys
-differently), copy the exact error key path from logs and adjust
-`apps/cosmo-router/config.yaml` to match — the `connect:` schema is at
-https://cosmo-docs.wundergraph.com/connect/overview. Re-pull + restart.
-
-### 3. Push trusted docs from a real synthesis
-
-```bash
-DEMO_MODE=live python -m apps.synthesis-worker.main \
-  --recording fixtures/mp4/demo-shopify.mp4 \
-  --synth-id dryrun-$(date +%s)
+Expected log lines:
+```
+"discovered service" full_name=agent_alpha.v1.AgentAlpha
+"loaded operations for service" service=agent_alpha.v1.AgentAlpha operation_count=N
+"ConnectRPC server ready" addr=[::]:5026
 ```
 
-Confirm the worker logged `wgc operations push` succeeding (not the offline
-soft-fail). Then:
+### 3. Push Trusted Documents (separate from Connect; persisted-op cache)
 
 ```bash
-wgc operations list understudy --client dryrun-<id>
-# Expected: one row per Query/Mutation field in the SDL
+mkdir -p /tmp/wgc-test
+cat > /tmp/wgc-test/HealthPing.graphql <<'EOF'
+query HealthPing { __typename }
+EOF
+wgc operations push understudy --namespace default \
+  --client wgc-cli-smoke \
+  --file /tmp/wgc-test/HealthPing.graphql
+# Expected: "pushed 1 operations: 1 created, 0 up to date, 0 conflicts"
 ```
 
-### 4. Hit all four protocols
-
-For an agent named `dryrun-<id>` (or any pre-seeded agent like `agent_alpha`):
+### 4. Hit every protocol
 
 ```bash
-BASE=http://localhost:4000
-AGENT=agent_alpha   # swap in your dryrun id once registered
-
-# GraphQL
-curl -sf -X POST "$BASE/graphql" \
+# GraphQL — federated endpoint
+curl -sf -X POST http://localhost:4000/graphql \
   -H 'Content-Type: application/json' \
-  -d '{"query":"{ orders { id status } }"}' | head
+  -d '{"query":"{ orders { id status } }"}'
 
-# REST (JSON over HTTP)
-curl -sf "$BASE/connect/$AGENT/json/Orders"
+# Connect / REST / JSON — same URL, content-type-negotiated
+curl -sf -X POST http://localhost:5026/agent_alpha.v1.AgentAlpha/QueryOrders \
+  -H 'Content-Type: application/json' \
+  -H 'Connect-Protocol-Version: 1' \
+  -d '{}'
 
-# gRPC (needs grpcurl)
-grpcurl -plaintext "$BASE:4000" "$AGENT.Orders/Run"
-
-# OpenAPI spec — open in browser or curl
-curl -sf "$BASE/connect/$AGENT/openapi.json" | jq '.paths | keys'
+# gRPC (requires grpcurl)
+grpcurl -plaintext -d '{}' localhost:5026 agent_alpha.v1.AgentAlpha/QueryOrders
 ```
 
-If all four return data (or even a meaningful 4xx that isn't 404), the
-live Wundergraph integration is verified. If any return 404, fall back to
-replay mode for the demo and file a follow-up — the chips still render
-from the prewarm fixtures.
+A successful response or even a 502 `failed to execute GraphQL query`
+proves the protocol surface is wired (502 just means no upstream subgraph
+server is running on `:4001` — the federation chain is correct, the
+backing service is what's missing).
 
 ### Failure-mode kill-switch
 
 ```bash
-./scripts/demo_mode_switch.sh replay           # everything back to canned
+./scripts/demo_mode_switch.sh replay
 ```
 
-The chips on the AgentWall still render (prewarm seeds the canonical key);
-only the `curl` at 2:15 needs to be skipped from the cue card.
+Chips on the AgentWall still render (prewarm seeds the canonical key);
+only the live `curl` at 2:15 gets skipped from the cue card.
 
 ---
 
@@ -125,14 +161,21 @@ See architecture.md §15 for the minute-by-minute table. Kill-switch:
 Docker Compose stack in one command. Browser sessions run on TinyFish's
 hosted cloud; no second runtime surface needs flipping.
 
-### 2:15 — Four-protocol pop (Cosmo Connect)
+### 2:15 — Four-protocol pop (Cosmo ConnectRPC)
 
 Right after the federated endpoint blinks live (architecture.md §15, 2:00-2:15
 beat), click an agent tile on the wall and hover its four chips: **GraphQL**,
-**gRPC**, **REST**, **OpenAPI**. Copy the gRPC URL and paste it into the
-terminal: `curl -sf {url}/health`. Beat: *"one recording → four protocols,
-served from one federated graph."* Trusted Documents emitted by the synthesis
-worker drive the Cosmo Connect surface — no extra Gemini call.
+**gRPC**, **REST**, **Connect**. Copy the REST URL and paste in the terminal:
+
+```bash
+curl -X POST {url} -H 'Content-Type: application/json' \
+  -H 'Connect-Protocol-Version: 1' -d '{}' | head
+```
+
+Beat: *"one recording → one URL → gRPC + REST + Connect over content-type
+negotiation, plus the GraphQL endpoint." Cosmo Router's ConnectRPC server
+on :5026 exposes every operation as four wire formats from one proto file
+generated by `wgc grpc-service generate`.* No extra Gemini call.
 
 ## Owner task
 
