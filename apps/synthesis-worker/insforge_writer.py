@@ -33,6 +33,11 @@ import httpx
 
 log = logging.getLogger(__name__)
 
+# Mirrors apps/synthesis-worker/gemini_client.py — invariant #2 hermetic demo
+# mode (architecture.md §14). When DEMO_MODE=replay, persist_agent_artifacts
+# short-circuits so the demo path never makes outbound httpx calls to InsForge.
+DEMO_MODE = os.environ.get("DEMO_MODE", "live").lower()
+
 
 # Stable namespace for deterministic row-ids (uuid5 over image_digest). Using
 # the linked InsForge project_id so namespaces can't collide across projects.
@@ -109,6 +114,10 @@ class InsforgeWriter:
         pipeline is authoritative — secondary persistence must not break the
         primary path. NO-OPs (returns None) when creds are unset.
         """
+        if DEMO_MODE == "replay":
+            log.info("DEMO_MODE=replay: skipping persist_agent_artifacts")
+            return None
+
         if not self.enabled or self._client is None:
             log.info(
                 "insforge_writer disabled (INSFORGE_URL=%r, INSFORGE_API_KEY=%r); skipping",

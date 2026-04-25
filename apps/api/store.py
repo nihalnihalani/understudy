@@ -40,6 +40,11 @@ from .schemas import (
 
 log = logging.getLogger(__name__)
 
+# Mirrors apps/synthesis-worker/gemini_client.py — invariant #2 hermetic demo mode
+# (architecture.md §14). When DEMO_MODE=replay, InsForge writes are short-circuited
+# so the demo path never makes outbound httpx calls.
+DEMO_MODE = os.environ.get("DEMO_MODE", "live").lower()
+
 
 _AGENT_1_ID = UUID("11111111-1111-1111-1111-111111111111")
 _AGENT_2_ID = UUID("22222222-2222-2222-2222-222222222222")
@@ -212,6 +217,17 @@ class InsforgeStore:
         s3_uri: str | None = None,
         duration_s: int | None = None,
     ) -> SynthesisRun:
+        # Hermetic demo mode (invariant #2): never hit InsForge in replay. Return
+        # a synthetic SynthesisRun keyed by the caller's recording_id so the
+        # SSE/UI flow continues to work without outbound IO.
+        if DEMO_MODE == "replay":
+            log.info("DEMO_MODE=replay: skipping InsForge create_run write")
+            return SynthesisRun(
+                id=uuid4(),
+                recording_id=recording_id,
+                status=SynthesisStatus.QUEUED,
+            )
+
         # recording FK must exist before synthesis_run points at it.
         rec_payload = {
             "id": str(recording_id),

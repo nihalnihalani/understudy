@@ -18,16 +18,16 @@ redis: ## Start Redis on :6379 (uses already-running container if present)
 	@docker ps --filter "publish=6379" --format '{{.Names}}' | grep -q . \
 		|| docker run -d --rm --name understudy-redis -p 6379:6379 redis:8
 
-api: ## Run FastAPI synthesis API on :8080
-	$(PY) -m uvicorn apps.api.main:app --reload --host 0.0.0.0 --port 8080
+api: ## Run FastAPI synthesis API on :8080 (auto-sources .env if present)
+	@bash -c 'set -a; [ -f .env ] && . ./.env; set +a; exec $(PY) -m uvicorn apps.api.main:app --reload --host 0.0.0.0 --port 8080'
 
-worker: ## Run synthesis worker (consumes jobs:synthesis from Redis Streams)
-	cd apps/synthesis-worker && $(PY) main.py
+worker: ## Run synthesis worker (auto-sources .env if present)
+	@bash -c 'set -a; [ -f .env ] && . ./.env; set +a; cd apps/synthesis-worker && exec $(PY) main.py'
 
 web: ## Run Vite dev server on :5173
 	cd apps/web && npm run dev
 
-dev: ## Start Redis + API + Worker + Web together (blocks; ctrl-c stops all)
+dev: ## Start Redis + API + Worker + Web together (auto-sources .env; blocks; ctrl-c stops all)
 	@$(MAKE) -j4 redis api worker web
 
 debug: ## Start api+worker+web+Redis trace tail with DEBUG logs, tee'd to logs/
