@@ -1,46 +1,74 @@
 import { describe, it, expect } from "vitest";
-import { buildArgv } from "../src/tinyfish/cli.js";
+import { deriveGoal, runTinyFish } from "../src/tinyfish/cli.js";
 
-describe("TinyFish CLI argv builder", () => {
-  it("emits `run --skill name@version --script path`", () => {
-    const argv = buildArgv({
-      skill: { name: "shopify.orders.list", version: "2.3.1" },
-      scriptPath: "/agent/script.ts",
+describe("deriveGoal", () => {
+  it("includes operation, skill metadata, and JSON inputs", () => {
+    const goal = deriveGoal({
+      operation: "googleDriveAction",
+      inputs: { folder_name: "misc hackathons", file_name: "InSight" },
+      skill: { name: "drive.openFile", version: "1.0.0" },
     });
-    expect(argv).toEqual([
-      "run",
-      "--skill",
-      "shopify.orders.list@2.3.1",
-      "--script",
-      "/agent/script.ts",
-    ]);
+    expect(goal).toContain("Operation: googleDriveAction");
+    expect(goal).toContain("drive.openFile@1.0.0");
+    expect(goal).toContain('"folder_name":"misc hackathons"');
   });
 
-  it("forwards JSON inputs when provided", () => {
-    const argv = buildArgv({
+  it("omits the inputs line when inputs is empty", () => {
+    const goal = deriveGoal({
+      operation: "ping",
       skill: { name: "x", version: "1.0.0" },
-      scriptPath: "/a/b.ts",
-      inputs: { foo: 1 },
     });
-    expect(argv).toContain("--inputs");
-    expect(argv).toContain(JSON.stringify({ foo: 1 }));
+    expect(goal).toContain("Operation: ping");
+    expect(goal).not.toContain("Inputs:");
   });
 
-  it("refuses `latest` at runtime (architecture.md §13)", () => {
-    expect(() =>
-      buildArgv({
+  it("appends recalled-memory hints when context.recalled_memories is non-empty", () => {
+    const goal = deriveGoal({
+      operation: "x",
+      skill: { name: "s", version: "1.0.0" },
+      context: { recalled_memories: [{ id: "m1", text: "earlier turn" }] },
+    });
+    expect(goal).toMatch(/Recalled memories \(top 1\)/);
+    expect(goal).toContain("earlier turn");
+  });
+});
+
+describe("runTinyFish", () => {
+  it("refuses `latest` at runtime (architecture.md §13)", async () => {
+    await expect(
+      runTinyFish({
         skill: { name: "x", version: "latest" },
-        scriptPath: "/a.ts",
+        operation: "ping",
+        startingUrl: "about:blank",
+        apiKey: "dummy",
       }),
-    ).toThrow(/latest/);
+    ).rejects.toThrow(/latest/);
   });
 
-  it("refuses a missing skill name or version", () => {
-    expect(() =>
-      buildArgv({
-        skill: { name: "", version: "1.0.0" },
-        scriptPath: "/a.ts",
-      }),
-    ).toThrow();
+  it("calls client.agent.run({goal, url}) and returns the response", async () => {
+    const calls: { goal: string; url: string }[] = [];
+    const fakeClient = {
+      agent: {
+        run: async ({ goal, url }: { goal: string; url: string }) => {
+          calls.push({ goal, url });
+          return { id: "run_test", status: "complete", result: "ok" };
+        },
+      },
+    } as unknown as Parameters<typeof runTinyFish>[0]["client"];
+
+    const result = await runTinyFish({
+      skill: { name: "drive.openFile", version: "1.0.0" },
+      operation: "googleDriveAction",
+      inputs: { folder_name: "misc hackathons", file_name: "InSight" },
+      startingUrl: "https://drive.google.com",
+      client: fakeClient,
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0].url).toBe("https://drive.google.com");
+    expect(calls[0].goal).toContain("googleDriveAction");
+    expect(calls[0].goal).toContain("drive.openFile@1.0.0");
+    expect(result.parsed).toEqual({ id: "run_test", status: "complete", result: "ok" });
+    expect(result.startingUrl).toBe("https://drive.google.com");
   });
 });

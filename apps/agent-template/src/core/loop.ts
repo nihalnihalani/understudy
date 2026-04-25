@@ -103,13 +103,15 @@ export class AgentCoreLoop {
       RECALL_TOP_K,
     );
 
-    // Step 3: TinyFish CLI invocation. Recalled memories are passed via env so the
-    // argv shape stays identical to the vendor's documented `tinyfish run` contract.
+    // Step 3: TinyFish SDK invocation. We call client.agent.run({goal, url}) — no
+    // shell-out, no Skill registry (TinyFish doesn't have one). The "skill" lives on
+    // as project-internal metadata for the cache key + observability tagging.
     const run: TinyFishRunResult = await this.runFn({
       skill,
-      scriptPath: req.scriptPath,
+      operation: req.operation,
       inputs: req.inputs,
       context: { recalled_memories: recalled },
+      startingUrl: this.manifest.starting_url,
     });
 
     // Step 4: record assistant turn.

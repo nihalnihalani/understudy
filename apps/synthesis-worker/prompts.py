@@ -74,12 +74,25 @@ INTENT_ABSTRACTION_OUTPUT_SCHEMA: dict[str, Any] = {
 
 # --- (c) Script Emission — Gemini 3 Flash tool declaration --------------------------
 SCRIPT_EMISSION_SYSTEM = (
-    "You emit production-grade TinyFish CLI TypeScript for the given intent spec.\n"
-    "Use the current npm package scope `@tiny-fish/*` (for example `@tiny-fish/sdk`), "
-    "not the obsolete `@tinyfish/*` scope.\n"
+    "You emit production-grade TypeScript for the given intent spec, targeting the\n"
+    "real TinyFish SDK at `@tiny-fish/sdk` (verified shape, 2026-04-25):\n"
+    "\n"
+    "  import { TinyFish } from '@tiny-fish/sdk';\n"
+    "  const client = new TinyFish({ apiKey: process.env.TINYFISH_API_KEY! });\n"
+    "  const response = await client.agent.run({ goal, url });\n"
+    "  // .stream(...) for SSE events; .queue(...) for fire-and-forget.\n"
+    "\n"
+    "There are NO sub-module imports like `@tiny-fish/sdk/web_browser` or\n"
+    "`@tiny-fish/sdk/web_agent` — those don't exist on the real package. There is\n"
+    "NO Skill registry to import primitives from; TinyFish reads a free-form `goal`\n"
+    "string + a `url` and figures the rest out itself. Encode the workflow IN the\n"
+    "goal string — be specific about every action and selector hint.\n"
+    "\n"
     "Call `emit_tinyfish_script` exactly once with the script, Cosmo SDL, runtime\n"
-    "manifest, and pinned TinyFish Skills. Prefer Skill primitives over inline\n"
-    "selectors; TinyFish resolves selector_hint → accessibility tree at runtime."
+    "manifest, and `skills_pinned` (project-internal metadata for LangCache keying;\n"
+    "pick stable name@version pairs that describe the workflow category).\n"
+    "Always set `runtime_manifest.starting_url` to the URL the agent should open\n"
+    "first — the runtime calls `client.agent.run({goal, url: starting_url})`."
 )
 
 # Verbatim from architecture.md §10(c). Kept as a single dict so the Gemini SDK can
@@ -89,7 +102,8 @@ EMIT_TINYFISH_SCRIPT_TOOL: dict[str, Any] = {
         {
             "name": "emit_tinyfish_script",
             "description": (
-                "Emit a TinyFish CLI script with pinned Agent Skills for the intent spec"
+                "Emit a TinyFish SDK script (using @tiny-fish/sdk's TinyFish.agent.run) "
+                "plus a Cosmo SDL and runtime manifest for the intent spec."
             ),
             "parameters": {
                 "type": "object",
@@ -97,7 +111,11 @@ EMIT_TINYFISH_SCRIPT_TOOL: dict[str, Any] = {
                 "properties": {
                     "script": {
                         "type": "string",
-                        "description": "TypeScript for @tinyfish/cli v2+",
+                        "description": (
+                            "TypeScript for @tiny-fish/sdk@^0.0.8. MUST import "
+                            "`{ TinyFish } from '@tiny-fish/sdk'` (no sub-paths) "
+                            "and call `client.agent.run({goal, url})`."
+                        ),
                     },
                     "cosmo_sdl": {
                         "type": "string",
@@ -105,6 +123,7 @@ EMIT_TINYFISH_SCRIPT_TOOL: dict[str, Any] = {
                     },
                     "runtime_manifest": {
                         "type": "object",
+                        "required": ["tinyfish_products", "starting_url", "redis_namespace"],
                         "properties": {
                             "tinyfish_products": {
                                 "type": "array",
@@ -118,6 +137,13 @@ EMIT_TINYFISH_SCRIPT_TOOL: dict[str, Any] = {
                                     ]
                                 },
                             },
+                            "starting_url": {
+                                "type": "string",
+                                "description": (
+                                    "URL the agent opens before reasoning over the "
+                                    "goal (e.g. https://drive.google.com). Required."
+                                ),
+                            },
                             "redis_namespace": {"type": "string"},
                             "insforge_tables": {
                                 "type": "array",
@@ -127,8 +153,14 @@ EMIT_TINYFISH_SCRIPT_TOOL: dict[str, Any] = {
                     },
                     "skills_pinned": {
                         "type": "array",
+                        "description": (
+                            "Project-internal metadata only — TinyFish has no Skill "
+                            "registry. Pick descriptive name@version pairs (e.g. "
+                            "'drive.openFile@1.0.0') that categorize the workflow."
+                        ),
                         "items": {
                             "type": "object",
+                            "required": ["name", "version"],
                             "properties": {
                                 "name": {"type": "string"},
                                 "version": {"type": "string"},

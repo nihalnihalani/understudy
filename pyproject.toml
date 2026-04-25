@@ -22,6 +22,7 @@ dependencies = [
     "ffmpeg-python>=0.2.0",
     "httpx>=0.28",
     "strawberry-graphql>=0.250",
+    "tinyfish>=0.2.5",
 ]
 
 [project.optional-dependencies]
