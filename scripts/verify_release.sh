@@ -53,10 +53,17 @@ else
   exit 1
 fi
 
-banner "2/2  cosign verify-attestation --type slsaprovenance (SLSA L2 predicate)"
+banner "2/2  cosign verify-attestation (SLSA L2 provenance, slsa-github-generator)"
+# The SLSA provenance predicate (https://slsa.dev/provenance/v0.2) is signed
+# by the slsa-github-generator reusable workflow itself, NOT by our caller
+# workflow — that's Sigstore's canonical pattern (the actual builder signs).
+# So cert-identity must reference slsa-github-generator's workflow path, not
+# nihalnihalani/understudy/release.yml. The cosign --type shorthand
+# `slsaprovenance` doesn't match the v0.2 URL, so we pass the URL explicitly.
+SLSA_CERT_IDENTITY="https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@refs/tags/v2.0.0"
 if cosign verify-attestation \
-      --type slsaprovenance \
-      --certificate-identity   "${CERT_IDENTITY}" \
+      --type "https://slsa.dev/provenance/v0.2" \
+      --certificate-identity   "${SLSA_CERT_IDENTITY}" \
       --certificate-oidc-issuer "${CERT_OIDC_ISSUER}" \
       "${IMAGE}" >/tmp/us-cosign-attest.json 2>/tmp/us-cosign-attest.err; then
   ok "SLSA L2 provenance attestation valid"
