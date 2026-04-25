@@ -164,11 +164,15 @@ jobs:
       packages: write
       actions: read
     uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.0.0
+    # `upload-assets` was passed here previously and broke the workflow at parse
+    # time — it is not in the v2.0.0 reusable workflow's input spec, so GitHub
+    # rejected the YAML with `startup_failure` on every push. The provenance
+    # artifact is auto-uploaded; we consume it under its default name in
+    # attest-and-verify below.
     with:
       image: ${{ needs.build-sign-push.outputs.image }}
       digest: ${{ needs.build-sign-push.outputs.digest }}
       registry-username: ${{ github.actor }}
-      upload-assets: true
     secrets:
       registry-password: ${{ secrets.GITHUB_TOKEN }}
 
