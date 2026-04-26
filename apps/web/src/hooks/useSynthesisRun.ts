@@ -8,6 +8,7 @@
 
 import { useMemo } from "react";
 import { useTraceStream } from "./useTraceStream";
+import { useGeminiModels } from "./useGeminiModels";
 import {
   DEMO_ACTION_CALLS,
   DEMO_INTENT,
@@ -71,6 +72,7 @@ function stageState(
 
 export function useSynthesisRun(synthId: string | undefined): SynthesisRunState {
   const { run, trace, connected, error } = useTraceStream(synthId);
+  const models = useGeminiModels();
   const usingFixture = !run;
   const effectiveRun = run ?? DEMO_SYNTHESIS.run;
   const effectiveTrace = trace.length > 0 ? trace : DEMO_SYNTHESIS.trace;
@@ -91,7 +93,7 @@ export function useSynthesisRun(synthId: string | undefined): SynthesisRunState 
       {
         key: "flashLite",
         title: "Action Detection",
-        modelId: "gemini-3.1-flash-lite-preview",
+        modelId: models?.action_detection ?? "",
         thinkingLevel: "minimal",
         state: stageState(effectiveRun, "flashLite", usingFixture),
         toolCalls: flashLiteCalls,
@@ -103,8 +105,8 @@ export function useSynthesisRun(synthId: string | undefined): SynthesisRunState 
       {
         key: "pro",
         title: "Intent Abstraction",
-        modelId: "gemini-3-flash-preview",
-        thinkingLevel: "medium",
+        modelId: models?.intent_abstraction ?? "",
+        thinkingLevel: "high",
         state: stageState(effectiveRun, "pro", usingFixture),
         toolCalls: proThoughts,
         elapsedSeconds: 21.0,
@@ -115,7 +117,7 @@ export function useSynthesisRun(synthId: string | undefined): SynthesisRunState 
       {
         key: "flash",
         title: "Script Emission",
-        modelId: "gemini-3-flash-preview",
+        modelId: models?.script_emission ?? "",
         thinkingLevel: "medium",
         state: stageState(effectiveRun, "flash", usingFixture),
         toolCalls: flashLines,
@@ -126,7 +128,7 @@ export function useSynthesisRun(synthId: string | undefined): SynthesisRunState 
         footer: "SWE-bench 78%",
       },
     ];
-  }, [effectiveRun, usingFixture]);
+  }, [effectiveRun, usingFixture, models]);
 
   return {
     run: effectiveRun,
