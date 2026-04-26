@@ -184,12 +184,25 @@ class ServiceProbe(BaseModel):
     detail: str | None = None
 
 
+class GeminiModelPins(BaseModel):
+    """The three Gemini model IDs the synthesis pipeline pins to.
+
+    Sourced from understudy/models.py — the frontend reads these so it never
+    embeds model literals in TS (CLAUDE.md invariant #1: pins live in one place).
+    """
+
+    action_detection: str
+    intent_abstraction: str
+    script_emission: str
+
+
 class HealthResponse(BaseModel):
     """GET /healthz response."""
 
     status: str
     demo_mode: DemoMode
     services: list[ServiceProbe]
+    models: GeminiModelPins
 
 
 class ReplayResponse(BaseModel):

@@ -42,6 +42,7 @@ from .schemas import (
     AgentProtocols,
     DemoMode,
     FullAttestation,
+    GeminiModelPins,
     HealthResponse,
     ReplayResponse,
     ServiceProbe,
@@ -270,7 +271,16 @@ async def healthz(redis: RedisClient = Depends(get_redis)) -> HealthResponse:
         insforge_mcp_probe,
         _probe_env("tinyfish", "TINYFISH_API_KEY", "CLI + Agent Skills configured"),
     ]
-    return HealthResponse(status="ok", demo_mode=_demo_mode(), services=probes)
+    return HealthResponse(
+        status="ok",
+        demo_mode=_demo_mode(),
+        services=probes,
+        models=GeminiModelPins(
+            action_detection=GEMINI_ACTION_DETECTION,
+            intent_abstraction=GEMINI_INTENT_ABSTRACTION,
+            script_emission=GEMINI_SCRIPT_EMISSION,
+        ),
+    )
 
 
 @app.post("/synthesize", status_code=status.HTTP_202_ACCEPTED, response_model=SynthesizeAccepted)

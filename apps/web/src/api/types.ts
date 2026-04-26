@@ -127,10 +127,19 @@ export interface ServiceProbe {
   detail?: string | null;
 }
 
+// Mirror of apps/api/schemas.py::GeminiModelPins. Read by useGeminiModels()
+// hook so the HUD never embeds model literals (CLAUDE.md invariant #1).
+export interface GeminiModelPins {
+  action_detection: string;
+  intent_abstraction: string;
+  script_emission: string;
+}
+
 export interface HealthResponse {
   status: string;
   demo_mode: DemoMode;
   services: ServiceProbe[];
+  models: GeminiModelPins;
 }
 
 export interface ReplayResponse {

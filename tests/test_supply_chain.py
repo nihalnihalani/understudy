@@ -149,26 +149,57 @@ def test_attestation_bundle_has_rekor_and_fulcio_fields() -> None:
     assert att.cert_not_after > att.cert_not_before
 
 
+def _have_local_oci_registry() -> bool:
+    """A local push target reachable at localhost:5000 — required because
+    `cosign sign` ALWAYS pushes the signature manifest to a registry. A bare
+    `docker build -t name:tag` produces an image only in the local daemon,
+    which cosign then tries to look up at index.docker.io and 401s.
+
+    Probes the OCI registry `GET /v2/` endpoint, NOT just a TCP connect: on
+    macOS port 5000 is grabbed by AirPlay Receiver (Control Center) which
+    answers TCP but isn't an OCI registry — false positives there break the
+    test. A real `registry:2` container returns 200 OR 401 with a
+    `Docker-Distribution-Api-Version` header.
+    """
+    import urllib.error
+    import urllib.request
+    try:
+        req = urllib.request.Request("http://127.0.0.1:5000/v2/", method="GET")
+        with urllib.request.urlopen(req, timeout=1.0) as r:
+            return r.headers.get("Docker-Distribution-Api-Version") is not None
+    except urllib.error.HTTPError as exc:
+        # 401 from a real registry still counts (auth-walled but reachable).
+        return exc.headers.get("Docker-Distribution-Api-Version") is not None
+    except Exception:
+        return False
+
+
 @pytest.mark.skipif(
-    not (shutil.which("cosign") and shutil.which("docker")),
-    reason="cosign or docker not on PATH — supply-chain online test skipped",
+    not (shutil.which("cosign") and shutil.which("docker") and _have_local_oci_registry()),
+    reason=(
+        "needs cosign + docker + a local OCI registry on :5000. "
+        "Run `docker run -d -p 5000:5000 registry:2` to enable — "
+        "the live signed image is verified by tests/test_release_workflow.py "
+        "+ scripts/verify_release.sh against the real GHCR-pushed CI artifact."
+    ),
 )
 def test_cosign_sign_and_verify_local_image(tmp_path: Path) -> None:
-    """Build Dockerfile.wolfi, generate ephemeral key, sign, verify.
-
-    Skipped unless both cosign and docker are installed. This is intentionally
-    light-weight — we do NOT push to a registry; the signed-image artifact
-    lives only in the local daemon and on disk.
+    """Build Dockerfile.wolfi, push to local registry, sign with ephemeral key,
+    verify. The full prize-credible signing flow runs in
+    .github/workflows/release.yml against GHCR (keyless via Fulcio + Rekor) —
+    this local test is only useful as a smoke test on a developer machine
+    that happens to have a local registry container running.
     """
     repo = Path(__file__).resolve().parents[1]
     dockerfile = repo / "infra" / "chainguard" / "Dockerfile.wolfi"
     assert dockerfile.exists()
 
-    tag = "understudy-test:ci"
+    tag = "127.0.0.1:5000/understudy-test:ci"
     subprocess.run(
         ["docker", "build", "-f", str(dockerfile), "-t", tag, str(repo)],
         check=True,
     )
+    subprocess.run(["docker", "push", tag], check=True)
 
     key_prefix = tmp_path / "cosign"
     env = {"COSIGN_PASSWORD": ""}
@@ -178,11 +209,13 @@ def test_cosign_sign_and_verify_local_image(tmp_path: Path) -> None:
         env={**__import__("os").environ, **env},
     )
     subprocess.run(
-        ["cosign", "sign", "--key", f"{key_prefix}.key", "--yes", tag],
+        ["cosign", "sign", "--key", f"{key_prefix}.key", "--yes",
+         "--allow-insecure-registry", tag],
         check=True,
         env={**__import__("os").environ, **env},
     )
     subprocess.run(
-        ["cosign", "verify", "--key", f"{key_prefix}.pub", tag],
+        ["cosign", "verify", "--key", f"{key_prefix}.pub",
+         "--insecure-ignore-tlog", tag],
         check=True,
     )

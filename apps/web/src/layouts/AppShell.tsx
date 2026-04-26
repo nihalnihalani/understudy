@@ -1,5 +1,7 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { api } from "@/api/client";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   FileVideo,
@@ -32,28 +34,56 @@ interface NavItem {
   match?: RegExp;
 }
 
-const NAV: NavItem[] = [
-  { to: "/synthesize", label: "Upload", icon: FileVideo, match: /^\/synthesize\/?$/ },
-  {
-    to: "/synthesize/demo",
-    label: "Synthesis",
-    icon: Activity,
-    match: /^\/synthesize\/[^/]+$/,
-  },
-  {
-    to: "/synthesize/demo/dream-query",
-    label: "Dream Query",
-    icon: Network,
-    match: /dream-query$/,
-  },
-  {
-    to: "/agents/demo/supply-chain",
-    label: "Supply Chain",
-    icon: ShieldCheck,
-    match: /supply-chain$/,
-  },
-  { to: "/agents", label: "Agents", icon: Sparkles, match: /^\/agents\/?$/ },
-];
+/** Hook: most-recent agent's synth_id (extracted from ams_namespace =
+ * `ams:agent:{synth_id}`). Used to build deep-link nav items that point at a
+ * REAL run instead of the placeholder "demo" id (which 422s the API).
+ */
+function useLatestSynthId(): string | null {
+  const { data } = useQuery({
+    queryKey: ["agents", "latest-synth-id"],
+    queryFn: api.listAgents,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  });
+  if (!data || data.length === 0) return null;
+  // Newest agent = last in the list (the API returns oldest-first).
+  for (let i = data.length - 1; i >= 0; i--) {
+    const ns = data[i]?.ams_namespace ?? "";
+    const m = /^ams:agent:(.+)$/.exec(ns);
+    if (m) return m[1] ?? null;
+  }
+  return null;
+}
+
+function buildNav(latestSynthId: string | null): NavItem[] {
+  // When no agent is registered yet, the synth/dream-query/supply-chain
+  // deep links collapse to the wall — clicking them lands on /agents and the
+  // user picks one. This avoids the previous /demo placeholder routes that
+  // 422'd the API every time.
+  const synthId = latestSynthId ?? "";
+  return [
+    { to: "/synthesize", label: "Upload", icon: FileVideo, match: /^\/synthesize\/?$/ },
+    {
+      to: synthId ? `/synthesize/${synthId}` : "/agents",
+      label: "Synthesis",
+      icon: Activity,
+      match: /^\/synthesize\/[^/]+$/,
+    },
+    {
+      to: synthId ? `/synthesize/${synthId}/dream-query` : "/agents",
+      label: "Dream Query",
+      icon: Network,
+      match: /dream-query$/,
+    },
+    {
+      to: synthId ? `/agents/${synthId}/supply-chain` : "/supply-chain",
+      label: "Supply Chain",
+      icon: ShieldCheck,
+      match: /supply-chain$/,
+    },
+    { to: "/agents", label: "Agents", icon: Sparkles, match: /^\/agents\/?$/ },
+  ];
+}
 
 import { BackgroundGlows } from "@/components/ui/background-glows";
 import RetroGrid from "@/components/ui/retro-grid";
@@ -127,7 +157,7 @@ function Sidebar({ onCommandPalette }: { onCommandPalette: () => void }) {
       </button>
 
       <nav className="mt-4 flex flex-col gap-0.5 px-2" aria-label="Sections">
-        {NAV.map((item) => (
+        {buildNav(useLatestSynthId()).map((item) => (
           <NavItemLink key={item.to} item={item} />
         ))}
       </nav>
