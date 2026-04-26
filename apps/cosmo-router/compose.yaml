@@ -1,0 +1,10 @@
+version: 1
+subgraphs:
+  - name: agent_alpha
+    schema:
+      file: subgraphs/agent_alpha.graphql
+    routing_url: http://agent_alpha:4001/graphql
+  - name: agent_beta
+    schema:
+      file: subgraphs/agent_beta.graphql
+    routing_url: http://agent_beta:4001/graphql
